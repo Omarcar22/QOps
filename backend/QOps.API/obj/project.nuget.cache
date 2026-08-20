@@ -1,0 +1,11 @@
+{
+  "version": 2,
+  "dgSpecHash": "TdjA1bV6Wew=",
+  "success": true,
+  "projectFilePath": "C:\\Users\\omarc\\Projects\\QOps\\backend\\QOps.API\\QOps.API.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\omarc\\.nuget\\packages\\microsoft.aspnetcore.openapi\\10.0.11\\microsoft.aspnetcore.openapi.10.0.11.nupkg.sha512",
+    "C:\\Users\\omarc\\.nuget\\packages\\microsoft.openapi\\2.7.5\\microsoft.openapi.2.7.5.nupkg.sha512"
+  ],
+  "logs": []
+}

@@ -1,0 +1,16 @@
+C:\Users\omarc\Projects\QOps\backend\QOps.Application\bin\Debug\net10.0\QOps.Application.deps.json
+C:\Users\omarc\Projects\QOps\backend\QOps.Application\bin\Debug\net10.0\QOps.Application.dll
+C:\Users\omarc\Projects\QOps\backend\QOps.Application\bin\Debug\net10.0\QOps.Application.pdb
+C:\Users\omarc\Projects\QOps\backend\QOps.Application\bin\Debug\net10.0\QOps.Domain.dll
+C:\Users\omarc\Projects\QOps\backend\QOps.Application\bin\Debug\net10.0\QOps.Domain.pdb
+C:\Users\omarc\Projects\QOps\backend\QOps.Application\obj\Debug\net10.0\QOps.Application.csproj.AssemblyReference.cache
+C:\Users\omarc\Projects\QOps\backend\QOps.Application\obj\Debug\net10.0\QOps.Application.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\omarc\Projects\QOps\backend\QOps.Application\obj\Debug\net10.0\QOps.Application.AssemblyInfoInputs.cache
+C:\Users\omarc\Projects\QOps\backend\QOps.Application\obj\Debug\net10.0\QOps.Application.AssemblyInfo.cs
+C:\Users\omarc\Projects\QOps\backend\QOps.Application\obj\Debug\net10.0\QOps.Application.csproj.CoreCompileInputs.cache
+C:\Users\omarc\Projects\QOps\backend\QOps.Application\obj\Debug\net10.0\QOps.Application.sourcelink.json
+C:\Users\omarc\Projects\QOps\backend\QOps.Application\obj\Debug\net10.0\QOps.App.663E6304.Up2Date
+C:\Users\omarc\Projects\QOps\backend\QOps.Application\obj\Debug\net10.0\QOps.Application.dll
+C:\Users\omarc\Projects\QOps\backend\QOps.Application\obj\Debug\net10.0\refint\QOps.Application.dll
+C:\Users\omarc\Projects\QOps\backend\QOps.Application\obj\Debug\net10.0\QOps.Application.pdb
+C:\Users\omarc\Projects\QOps\backend\QOps.Application\obj\Debug\net10.0\ref\QOps.Application.dll

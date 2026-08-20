@@ -1,0 +1,12 @@
+C:\Users\omarc\Projects\QOps\backend\QOps.Domain\bin\Debug\net10.0\QOps.Domain.deps.json
+C:\Users\omarc\Projects\QOps\backend\QOps.Domain\bin\Debug\net10.0\QOps.Domain.dll
+C:\Users\omarc\Projects\QOps\backend\QOps.Domain\bin\Debug\net10.0\QOps.Domain.pdb
+C:\Users\omarc\Projects\QOps\backend\QOps.Domain\obj\Debug\net10.0\QOps.Domain.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\omarc\Projects\QOps\backend\QOps.Domain\obj\Debug\net10.0\QOps.Domain.AssemblyInfoInputs.cache
+C:\Users\omarc\Projects\QOps\backend\QOps.Domain\obj\Debug\net10.0\QOps.Domain.AssemblyInfo.cs
+C:\Users\omarc\Projects\QOps\backend\QOps.Domain\obj\Debug\net10.0\QOps.Domain.csproj.CoreCompileInputs.cache
+C:\Users\omarc\Projects\QOps\backend\QOps.Domain\obj\Debug\net10.0\QOps.Domain.sourcelink.json
+C:\Users\omarc\Projects\QOps\backend\QOps.Domain\obj\Debug\net10.0\QOps.Domain.dll
+C:\Users\omarc\Projects\QOps\backend\QOps.Domain\obj\Debug\net10.0\refint\QOps.Domain.dll
+C:\Users\omarc\Projects\QOps\backend\QOps.Domain\obj\Debug\net10.0\QOps.Domain.pdb
+C:\Users\omarc\Projects\QOps\backend\QOps.Domain\obj\Debug\net10.0\ref\QOps.Domain.dll
