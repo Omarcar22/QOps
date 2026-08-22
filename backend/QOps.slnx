@@ -1,4 +1,5 @@
 <Solution>
+  <Project Path="../tests/QOps.ApiTests/QOps.ApiTests.csproj" />
   <Project Path="../tests/QOps.UnitTests/QOps.UnitTests.csproj" />
   <Project Path="QOps.API/QOps.API.csproj" />
   <Project Path="QOps.Application/QOps.Application.csproj" />

@@ -1,0 +1,64 @@
+name: QOps CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore backend/QOps.slnx
+
+      - name: Build solution
+        run: dotnet build backend/QOps.slnx --no-restore
+
+      - name: Start QOps API
+        run: |
+          nohup dotnet run \
+            --project backend/QOps.API \
+            --urls http://localhost:5091 \
+            > qops-api.log 2>&1 &
+
+      - name: Wait for API
+        run: |
+          for i in {1..30}; do
+            if curl --silent --fail http://localhost:5091/api/health; then
+              echo "QOps API is ready"
+              exit 0
+            fi
+
+            echo "Waiting for QOps API..."
+            sleep 2
+          done
+
+          echo "QOps API failed to start"
+          cat qops-api.log
+          exit 1
+
+      - name: Run unit tests
+        run: dotnet test tests/QOps.UnitTests/QOps.UnitTests.csproj --no-restore
+
+      - name: Run API tests
+        run: dotnet test tests/QOps.ApiTests/QOps.ApiTests.csproj --no-restore
+
+      - name: Upload API log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qops-api-log
+          path: qops-api.log
