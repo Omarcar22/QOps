@@ -22,7 +22,7 @@ $env:ASPNETCORE_ENVIRONMENT = "Development"
 dotnet run --project backend/QOps.API
 ```
 
-The API is available at `http://localhost:5091` when started with the repository launch settings. The development startup creates the initial database schema automatically. Migrations will replace this during the persistence hardening phase.
+The API is available at `http://localhost:5091` when started with the repository launch settings. Development uses the `QOpsDev` database and applies pending Entity Framework migrations automatically. The previous local `QOps` database is left untouched.
 
 Run tests with:
 

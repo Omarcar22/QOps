@@ -14,7 +14,7 @@ public sealed class QOpsWebApplicationFactory : WebApplicationFactory<Program>
             configuration.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["ConnectionStrings:QOpsDatabase"] =
-                    "Server=localhost,1433;Database=QOpsIntegrationTests;User Id=sa;Password=QOps_dev_2026!;TrustServerCertificate=True;"
+                    "Server=localhost,1433;Database=QOpsIntegrationTestsV2;User Id=sa;Password=QOps_dev_2026!;TrustServerCertificate=True;"
             });
         });
     }
