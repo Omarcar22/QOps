@@ -1,0 +1,14 @@
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: qops-sqlserver
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "QOps_dev_2026!"
+    ports:
+      - "1433:1433"
+    volumes:
+      - qops-sqlserver-data:/var/opt/mssql
+
+volumes:
+  qops-sqlserver-data:
