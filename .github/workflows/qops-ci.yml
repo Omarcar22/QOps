@@ -12,6 +12,15 @@ jobs:
   build-and-test:
     runs-on: ubuntu-latest
 
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: Y
+          MSSQL_SA_PASSWORD: "QOps_dev_2026!"
+        ports:
+          - 1433:1433
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -27,27 +36,19 @@ jobs:
       - name: Build solution
         run: dotnet build backend/QOps.slnx --no-restore
 
-      - name: Start QOps API
-        run: |
-          nohup dotnet run \
-            --project backend/QOps.API \
-            --urls http://localhost:5091 \
-            > qops-api.log 2>&1 &
-
-      - name: Wait for API
+      - name: Wait for SQL Server
         run: |
           for i in {1..30}; do
-            if curl --silent --fail http://localhost:5091/api/health; then
-              echo "QOps API is ready"
+            if (echo > /dev/tcp/127.0.0.1/1433) >/dev/null 2>&1; then
+              echo "SQL Server is ready"
               exit 0
             fi
 
-            echo "Waiting for QOps API..."
+            echo "Waiting for SQL Server..."
             sleep 2
           done
 
-          echo "QOps API failed to start"
-          cat qops-api.log
+          echo "SQL Server failed to start"
           exit 1
 
       - name: Run unit tests
@@ -55,10 +56,3 @@ jobs:
 
       - name: Run API tests
         run: dotnet test tests/QOps.ApiTests/QOps.ApiTests.csproj --no-restore
-
-      - name: Upload API log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: qops-api-log
-          path: qops-api.log
