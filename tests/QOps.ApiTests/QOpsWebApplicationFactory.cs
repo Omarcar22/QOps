@@ -1,6 +1,9 @@
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace QOps.ApiTests;
 
@@ -16,6 +19,14 @@ public sealed class QOpsWebApplicationFactory : WebApplicationFactory<Program>
                 ["ConnectionStrings:QOpsDatabase"] =
                     "Server=localhost,1433;Database=QOpsIntegrationTestsV2;User Id=sa;Password=QOps_dev_2026!;TrustServerCertificate=True;"
             });
+        });
+        builder.ConfigureTestServices(services =>
+        {
+            services.AddAuthentication(options =>
+            {
+                options.DefaultAuthenticateScheme = "Test";
+                options.DefaultChallengeScheme = "Test";
+            }).AddScheme<AuthenticationSchemeOptions, TestAuthHandler>("Test", _ => { });
         });
     }
 }

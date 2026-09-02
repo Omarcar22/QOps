@@ -1,9 +1,11 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using QOps.Application.Projects;
 
 namespace QOps.API.Controllers;
 
 [ApiController]
+[Authorize]
 [Route("api/projects")]
 public sealed class ProjectsController(IProjectService projectService) : ControllerBase
 {
@@ -24,6 +26,7 @@ public sealed class ProjectsController(IProjectService projectService) : Control
     }
 
     [HttpPost]
+    [Authorize(Policy = "CanWrite")]
     public async Task<ActionResult<ProjectResponse>> Create(
         CreateProjectRequest request,
         CancellationToken cancellationToken)
@@ -40,6 +43,7 @@ public sealed class ProjectsController(IProjectService projectService) : Control
     }
 
     [HttpPut("{id:guid}")]
+    [Authorize(Policy = "CanWrite")]
     public async Task<ActionResult<ProjectResponse>> Update(
         Guid id,
         UpdateProjectRequest request,
@@ -57,6 +61,7 @@ public sealed class ProjectsController(IProjectService projectService) : Control
     }
 
     [HttpDelete("{id:guid}")]
+    [Authorize(Policy = "CanDelete")]
     public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
     {
         return await projectService.DeleteAsync(id, cancellationToken)

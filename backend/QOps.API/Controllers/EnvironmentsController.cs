@@ -1,9 +1,11 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using QOps.Application.Environments;
 
 namespace QOps.API.Controllers;
 
 [ApiController]
+[Authorize]
 [Route("api/projects/{projectId:guid}/environments")]
 public sealed class EnvironmentsController(IEnvironmentService environmentService) : ControllerBase
 {
@@ -26,6 +28,7 @@ public sealed class EnvironmentsController(IEnvironmentService environmentServic
     }
 
     [HttpPost]
+    [Authorize(Policy = "CanWrite")]
     public async Task<ActionResult<EnvironmentResponse>> Create(
         Guid projectId,
         CreateEnvironmentRequest request,
@@ -43,6 +46,7 @@ public sealed class EnvironmentsController(IEnvironmentService environmentServic
     }
 
     [HttpPut("{id:guid}")]
+    [Authorize(Policy = "CanWrite")]
     public async Task<ActionResult<EnvironmentResponse>> Update(
         Guid projectId,
         Guid id,
@@ -61,6 +65,7 @@ public sealed class EnvironmentsController(IEnvironmentService environmentServic
     }
 
     [HttpDelete("{id:guid}")]
+    [Authorize(Policy = "CanDelete")]
     public async Task<IActionResult> Delete(Guid projectId, Guid id, CancellationToken cancellationToken)
     {
         return await environmentService.DeleteAsync(projectId, id, cancellationToken)

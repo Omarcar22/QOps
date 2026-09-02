@@ -21,6 +21,23 @@ type AuthResponse = {
   user: AuthUser
 }
 
+type UserRole = 'Admin' | 'Developer' | 'Viewer'
+
+type ManagedUser = {
+  id: string
+  email: string
+  role: UserRole | number | string
+  isActive: boolean
+}
+
+type ToastKind = 'success' | 'error' | 'info'
+
+type Toast = {
+  id: number
+  message: string
+  kind: ToastKind
+}
+
 type Project = {
   id: string
   name: string
@@ -176,6 +193,7 @@ const emptyReleaseForm: ReleaseForm = {
 }
 
 const authTokenKey = 'qops_auth_token'
+const authUserKey = 'qops_auth_user'
 
 const apiFetch = (input: RequestInfo | URL, init: RequestInit = {}) => {
   const headers = new Headers(init.headers)
@@ -188,18 +206,48 @@ const apiFetch = (input: RequestInfo | URL, init: RequestInit = {}) => {
   return fetch(input, { ...init, headers })
 }
 
+const getResponseError = (response: Response, fallback: string) => {
+  if (response.status === 401) {
+    return 'Tu sesión no es válida o ha expirado. Inicia sesión de nuevo.'
+  }
+
+  if (response.status === 403) {
+    return 'No tienes permisos suficientes para realizar esta acción.'
+  }
+
+  if (response.status === 400) {
+    return 'La solicitud no es válida. Revisa los datos introducidos.'
+  }
+
+  return response.status >= 500 ? 'El servidor encontró un problema. Inténtalo de nuevo.' : fallback
+}
+
+const normalizeUserRole = (role: ManagedUser['role']): UserRole => {
+  if (typeof role === 'number') {
+    return ['Admin', 'Developer', 'Viewer'][role] as UserRole
+  }
+
+  return role === 'Admin' || role === 'Developer' ? role : 'Viewer'
+}
+
+const toUserRoleValue = (role: UserRole) => ({ Admin: 0, Developer: 1, Viewer: 2 })[role]
+
 function App() {
   const [token, setToken] = useState(() => localStorage.getItem(authTokenKey))
+  const [authUser, setAuthUser] = useState<AuthUser | null>(() => {
+    const storedUser = localStorage.getItem(authUserKey)
+    return storedUser ? (JSON.parse(storedUser) as AuthUser) : null
+  })
   const [authMode, setAuthMode] = useState<AuthMode>('login')
   const [authEmail, setAuthEmail] = useState('')
   const [authPassword, setAuthPassword] = useState('')
   const [authSubmitting, setAuthSubmitting] = useState(false)
   const [authError, setAuthError] = useState('')
+  const [toast, setToast] = useState<Toast | null>(null)
   const [projects, setProjects] = useState<Project[]>([])
   const [form, setForm] = useState<ProjectForm>(emptyForm)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState('')
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null)
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
   const [environments, setEnvironments] = useState<Environment[]>([])
@@ -219,6 +267,68 @@ function App() {
   const [editingReleaseId, setEditingReleaseId] = useState<string | null>(null)
   const [releasesLoading, setReleasesLoading] = useState(false)
   const [releaseSubmitting, setReleaseSubmitting] = useState(false)
+  const [managedUsers, setManagedUsers] = useState<ManagedUser[]>([])
+  const [usersLoading, setUsersLoading] = useState(false)
+  const [usersOpen, setUsersOpen] = useState(false)
+
+  const notify = (message: string, kind: ToastKind = 'error') => {
+    setToast({ id: Date.now(), message, kind })
+  }
+
+  const loadUsers = async () => {
+    try {
+      setUsersLoading(true)
+      const response = await apiFetch('/api/users')
+      if (!response.ok) {
+        throw new Error(getResponseError(response, 'No se pudieron cargar los usuarios.'))
+      }
+
+      setManagedUsers((await response.json()) as ManagedUser[])
+    } catch (loadError) {
+      notify(loadError instanceof Error ? loadError.message : 'Error inesperado.')
+    } finally {
+      setUsersLoading(false)
+    }
+  }
+
+  const updateManagedUser = async (user: ManagedUser, role: UserRole, isActive: boolean) => {
+    try {
+      const response = await apiFetch(`/api/users/${user.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: toUserRoleValue(role), isActive }),
+      })
+
+      if (!response.ok) {
+        throw new Error(getResponseError(response, 'No se pudo actualizar el usuario.'))
+      }
+
+      setManagedUsers((current) => current.map((item) => item.id === user.id ? { ...item, role, isActive } : item))
+      const isCurrentUser = authUser?.id === user.id
+      if (isCurrentUser) {
+        const updatedAuthUser = { ...authUser, role, isActive }
+        setAuthUser(updatedAuthUser)
+        localStorage.setItem(authUserKey, JSON.stringify(updatedAuthUser))
+        if (role !== 'Admin') {
+          setUsersOpen(false)
+        }
+      }
+      notify(isCurrentUser && role !== 'Admin'
+        ? 'Tu rol cambió. El panel de usuarios se cerró.'
+        : 'Usuario actualizado correctamente.', 'success')
+    } catch (updateError) {
+      notify(updateError instanceof Error ? updateError.message : 'Error al actualizar el usuario.')
+    }
+  }
+
+  useEffect(() => {
+    if (!toast) {
+      return
+    }
+
+    const timeoutId = window.setTimeout(() => setToast(null), 5000)
+    return () => window.clearTimeout(timeoutId)
+  }, [toast])
 
   const loadProjects = async () => {
     try {
@@ -226,14 +336,13 @@ function App() {
       const response = await apiFetch('/api/projects')
 
       if (!response.ok) {
-        throw new Error('No se pudieron cargar los proyectos.')
+        throw new Error(getResponseError(response, 'No se pudieron cargar los proyectos.'))
       }
 
       const data = (await response.json()) as Project[]
       setProjects(data)
-      setError('')
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : 'Error inesperado.')
+      notify(loadError instanceof Error ? loadError.message : 'Error inesperado.')
     } finally {
       setLoading(false)
     }
@@ -251,13 +360,12 @@ function App() {
       const response = await apiFetch(`/api/projects/${projectId}/environments`)
 
       if (!response.ok) {
-        throw new Error('No se pudieron cargar los environments.')
+        throw new Error(getResponseError(response, 'No se pudieron cargar los environments.'))
       }
 
       setEnvironments((await response.json()) as Environment[])
-      setError('')
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : 'Error inesperado.')
+      notify(loadError instanceof Error ? loadError.message : 'Error inesperado.')
     } finally {
       setEnvironmentsLoading(false)
     }
@@ -296,13 +404,12 @@ function App() {
     event.preventDefault()
 
     if (!form.name.trim() || !form.environment.trim() || !form.version.trim()) {
-      setError('Nombre, entorno y versión son obligatorios.')
+      notify('Nombre, entorno y versión son obligatorios.')
       return
     }
 
     try {
       setSubmitting(true)
-      setError('')
 
       const url = editingProjectId ? `/api/projects/${editingProjectId}` : '/api/projects'
       const method = editingProjectId ? 'PUT' : 'POST'
@@ -320,13 +427,14 @@ function App() {
       })
 
       if (!response.ok) {
-        throw new Error(editingProjectId ? 'No se pudo actualizar el proyecto.' : 'No se pudo crear el proyecto.')
+        throw new Error(getResponseError(response, editingProjectId ? 'No se pudo actualizar el proyecto.' : 'No se pudo crear el proyecto.'))
       }
 
       resetForm()
       await loadProjects()
+      notify(editingProjectId ? 'Proyecto actualizado correctamente.' : 'Proyecto creado correctamente.', 'success')
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : 'Error al guardar.')
+      notify(submitError instanceof Error ? submitError.message : 'Error al guardar.')
     } finally {
       setSubmitting(false)
     }
@@ -346,13 +454,12 @@ function App() {
     event.preventDefault()
 
     if (!selectedProjectId || !environmentForm.name.trim() || !environmentForm.url.trim()) {
-      setError('Nombre y URL del environment son obligatorios.')
+      notify('Nombre y URL del environment son obligatorios.')
       return
     }
 
     try {
       setEnvironmentSubmitting(true)
-      setError('')
 
       const url = editingEnvironmentId
         ? `/api/projects/${selectedProjectId}/environments/${editingEnvironmentId}`
@@ -372,13 +479,14 @@ function App() {
       })
 
       if (!response.ok) {
-        throw new Error(editingEnvironmentId ? 'No se pudo actualizar el environment.' : 'No se pudo crear el environment.')
+        throw new Error(getResponseError(response, editingEnvironmentId ? 'No se pudo actualizar el environment.' : 'No se pudo crear el environment.'))
       }
 
       resetEnvironmentForm()
       await loadEnvironments(selectedProjectId)
+      notify(editingEnvironmentId ? 'Environment actualizado correctamente.' : 'Environment creado correctamente.', 'success')
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : 'Error al guardar el environment.')
+      notify(submitError instanceof Error ? submitError.message : 'Error al guardar el environment.')
     } finally {
       setEnvironmentSubmitting(false)
     }
@@ -395,7 +503,7 @@ function App() {
       })
 
       if (!response.ok) {
-        throw new Error('No se pudo eliminar el environment.')
+        throw new Error(getResponseError(response, 'No se pudo eliminar el environment.'))
       }
 
       await loadEnvironments(selectedProjectId)
@@ -403,8 +511,9 @@ function App() {
         setSelectedEnvironmentId(null)
         setDeployments([])
       }
+      notify('Environment eliminado correctamente.', 'success')
     } catch (deleteError) {
-      setError(deleteError instanceof Error ? deleteError.message : 'Error al eliminar el environment.')
+      notify(deleteError instanceof Error ? deleteError.message : 'Error al eliminar el environment.')
     }
   }
 
@@ -416,13 +525,12 @@ function App() {
       )
 
       if (!response.ok) {
-        throw new Error('No se pudieron cargar los deployments.')
+        throw new Error(getResponseError(response, 'No se pudieron cargar los deployments.'))
       }
 
       setDeployments((await response.json()) as Deployment[])
-      setError('')
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : 'Error inesperado.')
+      notify(loadError instanceof Error ? loadError.message : 'Error inesperado.')
     } finally {
       setDeploymentsLoading(false)
     }
@@ -456,13 +564,12 @@ function App() {
     event.preventDefault()
 
     if (!selectedProjectId || !selectedEnvironmentId || !deploymentForm.version.trim()) {
-      setError('La versión del deployment es obligatoria.')
+      notify('La versión del deployment es obligatoria.')
       return
     }
 
     try {
       setDeploymentSubmitting(true)
-      setError('')
 
       const baseUrl = `/api/projects/${selectedProjectId}/environments/${selectedEnvironmentId}/deployments`
       const url = editingDeploymentId ? `${baseUrl}/${editingDeploymentId}` : baseUrl
@@ -477,13 +584,14 @@ function App() {
       })
 
       if (!response.ok) {
-        throw new Error(editingDeploymentId ? 'No se pudo actualizar el deployment.' : 'No se pudo crear el deployment.')
+        throw new Error(getResponseError(response, editingDeploymentId ? 'No se pudo actualizar el deployment.' : 'No se pudo crear el deployment.'))
       }
 
       resetDeploymentForm()
       await loadDeployments(selectedProjectId, selectedEnvironmentId)
+      notify(editingDeploymentId ? 'Deployment actualizado correctamente.' : 'Deployment creado correctamente.', 'success')
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : 'Error al guardar el deployment.')
+      notify(submitError instanceof Error ? submitError.message : 'Error al guardar el deployment.')
     } finally {
       setDeploymentSubmitting(false)
     }
@@ -501,12 +609,13 @@ function App() {
       )
 
       if (!response.ok) {
-        throw new Error('No se pudo eliminar el deployment.')
+        throw new Error(getResponseError(response, 'No se pudo eliminar el deployment.'))
       }
 
       await loadDeployments(selectedProjectId, selectedEnvironmentId)
+      notify('Deployment eliminado correctamente.', 'success')
     } catch (deleteError) {
-      setError(deleteError instanceof Error ? deleteError.message : 'Error al eliminar el deployment.')
+      notify(deleteError instanceof Error ? deleteError.message : 'Error al eliminar el deployment.')
     }
   }
 
@@ -516,13 +625,12 @@ function App() {
       const response = await apiFetch(`/api/projects/${projectId}/releases`)
 
       if (!response.ok) {
-        throw new Error('No se pudieron cargar los releases.')
+        throw new Error(getResponseError(response, 'No se pudieron cargar los releases.'))
       }
 
       setReleases((await response.json()) as Release[])
-      setError('')
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : 'Error inesperado.')
+      notify(loadError instanceof Error ? loadError.message : 'Error inesperado.')
     } finally {
       setReleasesLoading(false)
     }
@@ -553,13 +661,12 @@ function App() {
     event.preventDefault()
 
     if (!selectedReleaseProjectId || !releaseForm.version.trim()) {
-      setError('La versión del release es obligatoria.')
+      notify('La versión del release es obligatoria.')
       return
     }
 
     try {
       setReleaseSubmitting(true)
-      setError('')
 
       const baseUrl = `/api/projects/${selectedReleaseProjectId}/releases`
       const url = editingReleaseId ? `${baseUrl}/${editingReleaseId}` : baseUrl
@@ -575,13 +682,14 @@ function App() {
       })
 
       if (!response.ok) {
-        throw new Error(editingReleaseId ? 'No se pudo actualizar el release.' : 'No se pudo crear el release.')
+        throw new Error(getResponseError(response, editingReleaseId ? 'No se pudo actualizar el release.' : 'No se pudo crear el release.'))
       }
 
       resetReleaseForm()
       await loadReleases(selectedReleaseProjectId)
+      notify(editingReleaseId ? 'Release actualizado correctamente.' : 'Release creado correctamente.', 'success')
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : 'Error al guardar el release.')
+      notify(submitError instanceof Error ? submitError.message : 'Error al guardar el release.')
     } finally {
       setReleaseSubmitting(false)
     }
@@ -598,12 +706,13 @@ function App() {
       })
 
       if (!response.ok) {
-        throw new Error('No se pudo eliminar el release.')
+        throw new Error(getResponseError(response, 'No se pudo eliminar el release.'))
       }
 
       await loadReleases(selectedReleaseProjectId)
+      notify('Release eliminado correctamente.', 'success')
     } catch (deleteError) {
-      setError(deleteError instanceof Error ? deleteError.message : 'Error al eliminar el release.')
+      notify(deleteError instanceof Error ? deleteError.message : 'Error al eliminar el release.')
     }
   }
 
@@ -614,7 +723,7 @@ function App() {
       })
 
       if (!response.ok) {
-        throw new Error('No se pudo eliminar el proyecto.')
+        throw new Error(getResponseError(response, 'No se pudo eliminar el proyecto.'))
       }
 
       await loadProjects()
@@ -626,9 +735,9 @@ function App() {
         setSelectedReleaseProjectId(null)
         setReleases([])
       }
-
+      notify('Proyecto eliminado correctamente.', 'success')
     } catch (deleteError) {
-      setError(deleteError instanceof Error ? deleteError.message : 'Error al eliminar.')
+      notify(deleteError instanceof Error ? deleteError.message : 'Error al eliminar.')
     }
   }
 
@@ -664,7 +773,9 @@ function App() {
 
       const auth = (await response.json()) as AuthResponse
       localStorage.setItem(authTokenKey, auth.token)
+      localStorage.setItem(authUserKey, JSON.stringify(auth.user))
       setToken(auth.token)
+      setAuthUser(auth.user)
       setAuthEmail('')
       setAuthPassword('')
     } catch (submitError) {
@@ -676,7 +787,9 @@ function App() {
 
   const handleLogout = () => {
     localStorage.removeItem(authTokenKey)
+    localStorage.removeItem(authUserKey)
     setToken(null)
+    setAuthUser(null)
     setProjects([])
     setSelectedProjectId(null)
     setSelectedReleaseProjectId(null)
@@ -735,7 +848,16 @@ function App() {
   }
 
   return (
-    <main className="page-shell">
+    <>
+      {toast ? (
+        <div className={`toast-container toast-${toast.kind}`} role="alert">
+          <span>{toast.message}</span>
+          <button type="button" aria-label="Close message" onClick={() => setToast(null)}>
+            ×
+          </button>
+        </div>
+      ) : null}
+      <main className="page-shell">
       <section className="panel">
         <div className="panel-header">
           <div>
@@ -749,6 +871,20 @@ function App() {
             <button className="ghost-button" type="button" onClick={handleLogout}>
               Sign out
             </button>
+            {authUser && normalizeUserRole(authUser.role) === 'Admin' ? (
+              <button
+                className="admin-button"
+                type="button"
+                onClick={() => {
+                  setUsersOpen((current) => !current)
+                  if (!usersOpen) {
+                    void loadUsers()
+                  }
+                }}
+              >
+                Users
+              </button>
+            ) : null}
           </div>
         </div>
 
@@ -804,8 +940,6 @@ function App() {
               </select>
             </label>
           </div>
-
-          {error ? <p className="form-error">{error}</p> : null}
 
           <div className="action-row">
             <button className="primary-button" type="submit" disabled={submitting}>
@@ -897,6 +1031,74 @@ function App() {
           </div>
         )}
       </section>
+
+      {usersOpen ? (
+        <section className="panel users-panel">
+          <div className="panel-header">
+            <div>
+              <p className="eyebrow">Administration</p>
+              <h2>Users</h2>
+            </div>
+            <button className="ghost-button" type="button" onClick={() => void loadUsers()}>
+              Refresh
+            </button>
+          </div>
+
+          {usersLoading ? (
+            <p className="empty-state">Loading users...</p>
+          ) : managedUsers.length === 0 ? (
+            <p className="empty-state">No users registered.</p>
+          ) : (
+            <div className="table-wrapper">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Email</th>
+                    <th>Role</th>
+                    <th>Status</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {managedUsers.map((user) => {
+                    const role = normalizeUserRole(user.role)
+
+                    return (
+                      <tr key={user.id}>
+                        <td><strong>{user.email}</strong></td>
+                        <td>
+                          <select
+                            value={role}
+                            onChange={(event) => void updateManagedUser(user, event.target.value as UserRole, user.isActive)}
+                          >
+                            <option value="Admin">Admin</option>
+                            <option value="Developer">Developer</option>
+                            <option value="Viewer">Viewer</option>
+                          </select>
+                        </td>
+                        <td>
+                          <span className={`status-badge ${user.isActive ? 'active' : 'inactive'}`}>
+                            {user.isActive ? 'Active' : 'Inactive'}
+                          </span>
+                        </td>
+                        <td>
+                          <button
+                            className={user.isActive ? 'delete-button' : 'environment-button'}
+                            type="button"
+                            onClick={() => void updateManagedUser(user, role, !user.isActive)}
+                          >
+                            {user.isActive ? 'Deactivate' : 'Activate'}
+                          </button>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      ) : null}
 
       {selectedReleaseProjectId ? (
         <section className="panel release-panel">
@@ -1284,7 +1486,8 @@ function App() {
           )}
         </section>
       ) : null}
-    </main>
+      </main>
+    </>
   )
 }
 

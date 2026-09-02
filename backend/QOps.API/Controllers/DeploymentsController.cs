@@ -1,9 +1,11 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using QOps.Application.Deployments;
 
 namespace QOps.API.Controllers;
 
 [ApiController]
+[Authorize]
 [Route("api/projects/{projectId:guid}/environments/{environmentId:guid}/deployments")]
 public sealed class DeploymentsController(IDeploymentService deploymentService) : ControllerBase
 {
@@ -28,6 +30,7 @@ public sealed class DeploymentsController(IDeploymentService deploymentService) 
     }
 
     [HttpPost]
+    [Authorize(Policy = "CanWrite")]
     public async Task<ActionResult<DeploymentResponse>> Create(
         Guid projectId,
         Guid environmentId,
@@ -46,6 +49,7 @@ public sealed class DeploymentsController(IDeploymentService deploymentService) 
     }
 
     [HttpPut("{id:guid}")]
+    [Authorize(Policy = "CanWrite")]
     public async Task<ActionResult<DeploymentResponse>> Update(
         Guid projectId,
         Guid environmentId,
@@ -65,6 +69,7 @@ public sealed class DeploymentsController(IDeploymentService deploymentService) 
     }
 
     [HttpDelete("{id:guid}")]
+    [Authorize(Policy = "CanDelete")]
     public async Task<IActionResult> Delete(
         Guid projectId,
         Guid environmentId,

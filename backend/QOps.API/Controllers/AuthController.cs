@@ -1,9 +1,11 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using QOps.Application.Users;
 
 namespace QOps.API.Controllers;
 
 [ApiController]
+[AllowAnonymous]
 [Route("api/auth")]
 public sealed class AuthController(IAuthService authService) : ControllerBase
 {

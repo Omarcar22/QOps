@@ -57,4 +57,16 @@ public sealed class User
         IsActive = false;
         UpdatedAt = DateTimeOffset.UtcNow;
     }
+
+    public void SetRole(UserRole role)
+    {
+        Role = role;
+        UpdatedAt = DateTimeOffset.UtcNow;
+    }
+
+    public void SetActive(bool isActive)
+    {
+        IsActive = isActive;
+        UpdatedAt = DateTimeOffset.UtcNow;
+    }
 }

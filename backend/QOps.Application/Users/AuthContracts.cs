@@ -10,6 +10,8 @@ public sealed record UserResponse(Guid Id, string Email, UserRole Role, bool IsA
 
 public sealed record AuthResponse(string Token, UserResponse User);
 
+public sealed record UpdateUserRequest(UserRole Role, bool IsActive);
+
 public interface IAuthService
 {
     Task<UserResponse> RegisterAsync(RegisterUserRequest request, CancellationToken cancellationToken);
@@ -22,6 +24,10 @@ public interface IUserRepository
     Task AddAsync(User user, CancellationToken cancellationToken);
 
     Task<User?> GetByEmailAsync(string email, CancellationToken cancellationToken);
+
+    Task<IReadOnlyCollection<User>> GetAllAsync(CancellationToken cancellationToken);
+
+    Task<User?> GetByIdAsync(Guid id, CancellationToken cancellationToken);
 
     Task SaveChangesAsync(CancellationToken cancellationToken);
 }

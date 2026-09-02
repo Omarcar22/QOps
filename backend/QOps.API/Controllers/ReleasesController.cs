@@ -1,9 +1,11 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using QOps.Application.Releases;
 
 namespace QOps.API.Controllers;
 
 [ApiController]
+[Authorize]
 [Route("api/projects/{projectId:guid}/releases")]
 public sealed class ReleasesController(IReleaseService releaseService) : ControllerBase
 {
@@ -26,6 +28,7 @@ public sealed class ReleasesController(IReleaseService releaseService) : Control
     }
 
     [HttpPost]
+    [Authorize(Policy = "CanWrite")]
     public async Task<ActionResult<ReleaseResponse>> Create(
         Guid projectId,
         CreateReleaseRequest request,
@@ -43,6 +46,7 @@ public sealed class ReleasesController(IReleaseService releaseService) : Control
     }
 
     [HttpPut("{id:guid}")]
+    [Authorize(Policy = "CanWrite")]
     public async Task<ActionResult<ReleaseResponse>> Update(
         Guid projectId,
         Guid id,
@@ -61,6 +65,7 @@ public sealed class ReleasesController(IReleaseService releaseService) : Control
     }
 
     [HttpDelete("{id:guid}")]
+    [Authorize(Policy = "CanDelete")]
     public async Task<IActionResult> Delete(Guid projectId, Guid id, CancellationToken cancellationToken)
     {
         return await releaseService.DeleteAsync(projectId, id, cancellationToken)
