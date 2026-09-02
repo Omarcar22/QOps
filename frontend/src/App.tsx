@@ -7,6 +7,19 @@ type EnvironmentType = 'Development' | 'Staging' | 'Production'
 type EnvironmentStatus = 'Active' | 'Inactive'
 type DeploymentStatus = 'Pending' | 'InProgress' | 'Succeeded' | 'Failed'
 type ReleaseStatus = 'Draft' | 'Published' | 'Archived'
+type AuthMode = 'login' | 'register'
+
+type AuthUser = {
+  id: string
+  email: string
+  role: string | number
+  isActive: boolean
+}
+
+type AuthResponse = {
+  token: string
+  user: AuthUser
+}
 
 type Project = {
   id: string
@@ -156,13 +169,32 @@ type ReleaseForm = {
 }
 
 const emptyReleaseForm: ReleaseForm = {
-    version: '',
-    notes: '',
-    commitSha: '',
-    status: 'Draft',
+  version: '',
+  notes: '',
+  commitSha: '',
+  status: 'Draft',
+}
+
+const authTokenKey = 'qops_auth_token'
+
+const apiFetch = (input: RequestInfo | URL, init: RequestInit = {}) => {
+  const headers = new Headers(init.headers)
+  const token = localStorage.getItem(authTokenKey)
+
+  if (token) {
+    headers.set('Authorization', `Bearer ${token}`)
+  }
+
+  return fetch(input, { ...init, headers })
 }
 
 function App() {
+  const [token, setToken] = useState(() => localStorage.getItem(authTokenKey))
+  const [authMode, setAuthMode] = useState<AuthMode>('login')
+  const [authEmail, setAuthEmail] = useState('')
+  const [authPassword, setAuthPassword] = useState('')
+  const [authSubmitting, setAuthSubmitting] = useState(false)
+  const [authError, setAuthError] = useState('')
   const [projects, setProjects] = useState<Project[]>([])
   const [form, setForm] = useState<ProjectForm>(emptyForm)
   const [loading, setLoading] = useState(true)
@@ -191,7 +223,7 @@ function App() {
   const loadProjects = async () => {
     try {
       setLoading(true)
-      const response = await fetch('/api/projects')
+      const response = await apiFetch('/api/projects')
 
       if (!response.ok) {
         throw new Error('No se pudieron cargar los proyectos.')
@@ -208,13 +240,15 @@ function App() {
   }
 
   useEffect(() => {
-    void loadProjects()
-  }, [])
+    if (token) {
+      void loadProjects()
+    }
+  }, [token])
 
   const loadEnvironments = async (projectId: string) => {
     try {
       setEnvironmentsLoading(true)
-      const response = await fetch(`/api/projects/${projectId}/environments`)
+      const response = await apiFetch(`/api/projects/${projectId}/environments`)
 
       if (!response.ok) {
         throw new Error('No se pudieron cargar los environments.')
@@ -273,7 +307,7 @@ function App() {
       const url = editingProjectId ? `/api/projects/${editingProjectId}` : '/api/projects'
       const method = editingProjectId ? 'PUT' : 'POST'
 
-      const response = await fetch(url, {
+      const response = await apiFetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -331,7 +365,7 @@ function App() {
         ...(editingEnvironmentId ? { status: toEnvironmentStatusValue(environmentForm.status) } : {}),
       }
 
-      const response = await fetch(url, {
+      const response = await apiFetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -356,7 +390,7 @@ function App() {
     }
 
     try {
-      const response = await fetch(`/api/projects/${selectedProjectId}/environments/${environmentId}`, {
+      const response = await apiFetch(`/api/projects/${selectedProjectId}/environments/${environmentId}`, {
         method: 'DELETE',
       })
 
@@ -377,7 +411,7 @@ function App() {
   const loadDeployments = async (projectId: string, environmentId: string) => {
     try {
       setDeploymentsLoading(true)
-      const response = await fetch(
+      const response = await apiFetch(
         `/api/projects/${projectId}/environments/${environmentId}/deployments`,
       )
 
@@ -432,7 +466,7 @@ function App() {
 
       const baseUrl = `/api/projects/${selectedProjectId}/environments/${selectedEnvironmentId}/deployments`
       const url = editingDeploymentId ? `${baseUrl}/${editingDeploymentId}` : baseUrl
-      const response = await fetch(url, {
+      const response = await apiFetch(url, {
         method: editingDeploymentId ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -461,7 +495,7 @@ function App() {
     }
 
     try {
-      const response = await fetch(
+      const response = await apiFetch(
         `/api/projects/${selectedProjectId}/environments/${selectedEnvironmentId}/deployments/${deploymentId}`,
         { method: 'DELETE' },
       )
@@ -479,7 +513,7 @@ function App() {
   const loadReleases = async (projectId: string) => {
     try {
       setReleasesLoading(true)
-      const response = await fetch(`/api/projects/${projectId}/releases`)
+      const response = await apiFetch(`/api/projects/${projectId}/releases`)
 
       if (!response.ok) {
         throw new Error('No se pudieron cargar los releases.')
@@ -529,7 +563,7 @@ function App() {
 
       const baseUrl = `/api/projects/${selectedReleaseProjectId}/releases`
       const url = editingReleaseId ? `${baseUrl}/${editingReleaseId}` : baseUrl
-      const response = await fetch(url, {
+      const response = await apiFetch(url, {
         method: editingReleaseId ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -559,7 +593,7 @@ function App() {
     }
 
     try {
-      const response = await fetch(`/api/projects/${selectedReleaseProjectId}/releases/${releaseId}`, {
+      const response = await apiFetch(`/api/projects/${selectedReleaseProjectId}/releases/${releaseId}`, {
         method: 'DELETE',
       })
 
@@ -575,7 +609,7 @@ function App() {
 
   const handleDelete = async (id: string) => {
     try {
-      const response = await fetch(`/api/projects/${id}`, {
+      const response = await apiFetch(`/api/projects/${id}`, {
         method: 'DELETE',
       })
 
@@ -598,6 +632,108 @@ function App() {
     }
   }
 
+  const handleAuthSubmit = async (event: FormEvent) => {
+    event.preventDefault()
+
+    if (!authEmail.trim() || !authPassword) {
+      setAuthError('Email y contraseña son obligatorios.')
+      return
+    }
+
+    try {
+      setAuthSubmitting(true)
+      setAuthError('')
+
+      const endpoint = authMode === 'login' ? '/api/auth/login' : '/api/auth/register'
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: authEmail, password: authPassword }),
+      })
+
+      if (!response.ok) {
+        throw new Error(authMode === 'login' ? 'Email o contraseña incorrectos.' : 'No se pudo crear el usuario.')
+      }
+
+      if (authMode === 'register') {
+        setAuthMode('login')
+        setAuthPassword('')
+        setAuthError('Cuenta creada. Ahora inicia sesión.')
+        return
+      }
+
+      const auth = (await response.json()) as AuthResponse
+      localStorage.setItem(authTokenKey, auth.token)
+      setToken(auth.token)
+      setAuthEmail('')
+      setAuthPassword('')
+    } catch (submitError) {
+      setAuthError(submitError instanceof Error ? submitError.message : 'No se pudo completar la autenticación.')
+    } finally {
+      setAuthSubmitting(false)
+    }
+  }
+
+  const handleLogout = () => {
+    localStorage.removeItem(authTokenKey)
+    setToken(null)
+    setProjects([])
+    setSelectedProjectId(null)
+    setSelectedReleaseProjectId(null)
+  }
+
+  if (!token) {
+    return (
+      <main className="auth-shell">
+        <section className="auth-panel">
+          <p className="eyebrow">QOps control plane</p>
+          <h1>{authMode === 'login' ? 'Welcome back' : 'Create your account'}</h1>
+          <p className="auth-copy">
+            {authMode === 'login' ? 'Sign in to manage projects and deployments.' : 'Start with a Viewer account and manage your operations workspace.'}
+          </p>
+
+          <form className="auth-form" onSubmit={handleAuthSubmit}>
+            <label>
+              <span>Email</span>
+              <input
+                type="email"
+                value={authEmail}
+                onChange={(event) => setAuthEmail(event.target.value)}
+                placeholder="you@example.com"
+                autoComplete="email"
+              />
+            </label>
+            <label>
+              <span>Password</span>
+              <input
+                type="password"
+                value={authPassword}
+                onChange={(event) => setAuthPassword(event.target.value)}
+                placeholder="At least 8 characters"
+                autoComplete={authMode === 'login' ? 'current-password' : 'new-password'}
+              />
+            </label>
+            {authError ? <p className="form-error">{authError}</p> : null}
+            <button className="primary-button" type="submit" disabled={authSubmitting}>
+              {authSubmitting ? 'Please wait...' : authMode === 'login' ? 'Sign in' : 'Create account'}
+            </button>
+          </form>
+
+          <button
+            className="auth-switch"
+            type="button"
+            onClick={() => {
+              setAuthMode((current) => (current === 'login' ? 'register' : 'login'))
+              setAuthError('')
+            }}
+          >
+            {authMode === 'login' ? 'Need an account? Register' : 'Already have an account? Sign in'}
+          </button>
+        </section>
+      </main>
+    )
+  }
+
   return (
     <main className="page-shell">
       <section className="panel">
@@ -606,9 +742,14 @@ function App() {
             <p className="eyebrow">QOps</p>
             <h1>Projects</h1>
           </div>
-          <button className="ghost-button" type="button" onClick={() => void loadProjects()}>
-            Refresh
-          </button>
+          <div className="action-row">
+            <button className="ghost-button" type="button" onClick={() => void loadProjects()}>
+              Refresh
+            </button>
+            <button className="ghost-button" type="button" onClick={handleLogout}>
+              Sign out
+            </button>
+          </div>
         </div>
 
         <form className="project-form" onSubmit={handleSubmit}>

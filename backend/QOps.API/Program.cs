@@ -1,8 +1,11 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Identity;
 using QOps.Application.Environments;
 using QOps.Application.Deployments;
 using QOps.Application.Projects;
 using QOps.Application.Releases;
+using QOps.Application.Users;
+using QOps.Domain.Users;
 using QOps.Infrastructure.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -22,6 +25,9 @@ builder.Services.AddScoped<IDeploymentRepository, DeploymentRepository>();
 builder.Services.AddScoped<IDeploymentService, DeploymentService>();
 builder.Services.AddScoped<IReleaseRepository, ReleaseRepository>();
 builder.Services.AddScoped<IReleaseService, ReleaseService>();
+builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
 
 var app = builder.Build();
 

@@ -3,6 +3,7 @@ using QOps.Domain.Deployments;
 using QOps.Domain.Environments;
 using QOps.Domain.Projects;
 using QOps.Domain.Releases;
+using QOps.Domain.Users;
 using DomainEnvironment = QOps.Domain.Environments.Environment;
 
 namespace QOps.Infrastructure.Persistence;
@@ -16,6 +17,8 @@ public sealed class QOpsDbContext(DbContextOptions<QOpsDbContext> options) : DbC
     public DbSet<Deployment> Deployments => Set<Deployment>();
 
     public DbSet<Release> Releases => Set<Release>();
+
+    public DbSet<User> Users => Set<User>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -64,6 +67,17 @@ public sealed class QOpsDbContext(DbContextOptions<QOpsDbContext> options) : DbC
             entity.Property(release => release.CommitSha).HasMaxLength(100);
             entity.Property(release => release.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
             entity.HasIndex(release => new { release.ProjectId, release.Version }).IsUnique();
+        });
+
+        modelBuilder.Entity<User>(entity =>
+        {
+            entity.ToTable("Users");
+            entity.HasKey(user => user.Id);
+            entity.Property(user => user.Email).HasMaxLength(320).IsRequired();
+            entity.Property(user => user.PasswordHash).HasMaxLength(500).IsRequired();
+            entity.Property(user => user.Role).HasConversion<string>().HasMaxLength(20).IsRequired();
+            entity.Property(user => user.IsActive).IsRequired();
+            entity.HasIndex(user => user.Email).IsUnique();
         });
     }
 }
