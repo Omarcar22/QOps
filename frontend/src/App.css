@@ -58,7 +58,8 @@ h2 {
 }
 
 .project-form input,
-.project-form textarea {
+.project-form textarea,
+.project-form select {
   width: 100%;
   box-sizing: border-box;
   border: 1px solid #d1d5db;
@@ -70,7 +71,8 @@ h2 {
 }
 
 .project-form input:focus,
-.project-form textarea:focus {
+.project-form textarea:focus,
+.project-form select:focus {
   outline: 2px solid rgba(37, 99, 235, 0.15);
   border-color: #3b82f6;
 }
@@ -81,9 +83,18 @@ h2 {
   gap: 16px;
 }
 
+.action-row,
+.row-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .primary-button,
 .ghost-button,
-.delete-button {
+.delete-button,
+.edit-button,
+.environment-button {
   border: none;
   border-radius: 10px;
   font: inherit;
@@ -103,6 +114,20 @@ h2 {
   background: #eef2ff;
   color: #1e3a8a;
   padding: 9px 14px;
+  font-weight: 600;
+}
+
+.edit-button {
+  background: #e0f2fe;
+  color: #075985;
+  padding: 8px 12px;
+  font-weight: 600;
+}
+
+.environment-button {
+  background: #fef3c7;
+  color: #92400e;
+  padding: 8px 12px;
   font-weight: 600;
 }
 
@@ -178,6 +203,32 @@ th {
   color: #374151;
 }
 
+.status-badge.inactive {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.environment-panel {
+  border-color: #f3d38a;
+}
+
+.environment-form-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.environment-table-wrapper {
+  margin-top: 24px;
+}
+
+td a {
+  color: #2563eb;
+  text-decoration: none;
+}
+
+td a:hover {
+  text-decoration: underline;
+}
+
 .empty-state {
   margin: 14px 0 0;
   color: #6b7280;
@@ -185,6 +236,10 @@ th {
 
 @media (max-width: 768px) {
   .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .environment-form-grid {
     grid-template-columns: 1fr;
   }
 

@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using QOps.Application.Environments;
 using QOps.Application.Projects;
 using QOps.Infrastructure.Persistence;
 
@@ -13,6 +14,8 @@ builder.Services.AddDbContext<QOpsDbContext>(options =>
 
 builder.Services.AddScoped<IProjectRepository, ProjectRepository>();
 builder.Services.AddScoped<IProjectService, ProjectService>();
+builder.Services.AddScoped<IEnvironmentRepository, EnvironmentRepository>();
+builder.Services.AddScoped<IEnvironmentService, EnvironmentService>();
 
 var app = builder.Build();
 
