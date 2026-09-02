@@ -5,6 +5,7 @@ import './App.css'
 type ProjectStatus = 'Active' | 'Archived'
 type EnvironmentType = 'Development' | 'Staging' | 'Production'
 type EnvironmentStatus = 'Active' | 'Inactive'
+type DeploymentStatus = 'Pending' | 'InProgress' | 'Succeeded' | 'Failed'
 
 type Project = {
   id: string
@@ -24,6 +25,18 @@ type Environment = {
   type: EnvironmentType | number | string
   url: string
   status: EnvironmentStatus | number | string
+  createdAt: string
+  updatedAt: string
+}
+
+type Deployment = {
+  id: string
+  projectId: string
+  environmentId: string
+  version: string
+  notes: string | null
+  status: DeploymentStatus | number | string
+  deployedAt: string | null
   createdAt: string
   updatedAt: string
 }
@@ -59,6 +72,17 @@ const toEnvironmentTypeValue = (type: EnvironmentType) =>
 
 const toEnvironmentStatusValue = (status: EnvironmentStatus) => (status === 'Active' ? 0 : 1)
 
+const normalizeDeploymentStatus = (status: Deployment['status']): DeploymentStatus => {
+  if (typeof status === 'number') {
+    return ['Pending', 'InProgress', 'Succeeded', 'Failed'][status] as DeploymentStatus
+  }
+
+  return status === 'InProgress' || status === 'Succeeded' || status === 'Failed' ? status : 'Pending'
+}
+
+const toDeploymentStatusValue = (status: DeploymentStatus) =>
+  ({ Pending: 0, InProgress: 1, Succeeded: 2, Failed: 3 })[status]
+
 type ProjectForm = {
   name: string
   description: string
@@ -89,6 +113,18 @@ const emptyEnvironmentForm: EnvironmentForm = {
   status: 'Active',
 }
 
+type DeploymentForm = {
+  version: string
+  notes: string
+  status: DeploymentStatus
+}
+
+const emptyDeploymentForm: DeploymentForm = {
+  version: '',
+  notes: '',
+  status: 'Pending',
+}
+
 function App() {
   const [projects, setProjects] = useState<Project[]>([])
   const [form, setForm] = useState<ProjectForm>(emptyForm)
@@ -102,6 +138,12 @@ function App() {
   const [editingEnvironmentId, setEditingEnvironmentId] = useState<string | null>(null)
   const [environmentsLoading, setEnvironmentsLoading] = useState(false)
   const [environmentSubmitting, setEnvironmentSubmitting] = useState(false)
+  const [selectedEnvironmentId, setSelectedEnvironmentId] = useState<string | null>(null)
+  const [deployments, setDeployments] = useState<Deployment[]>([])
+  const [deploymentForm, setDeploymentForm] = useState<DeploymentForm>(emptyDeploymentForm)
+  const [editingDeploymentId, setEditingDeploymentId] = useState<string | null>(null)
+  const [deploymentsLoading, setDeploymentsLoading] = useState(false)
+  const [deploymentSubmitting, setDeploymentSubmitting] = useState(false)
 
   const loadProjects = async () => {
     try {
@@ -156,6 +198,8 @@ function App() {
 
   const handleManageEnvironments = (projectId: string) => {
     setSelectedProjectId(projectId)
+    setSelectedEnvironmentId(null)
+    setDeployments([])
     resetEnvironmentForm()
     void loadEnvironments(projectId)
   }
@@ -278,8 +322,114 @@ function App() {
       }
 
       await loadEnvironments(selectedProjectId)
+      if (selectedEnvironmentId === environmentId) {
+        setSelectedEnvironmentId(null)
+        setDeployments([])
+      }
     } catch (deleteError) {
       setError(deleteError instanceof Error ? deleteError.message : 'Error al eliminar el environment.')
+    }
+  }
+
+  const loadDeployments = async (projectId: string, environmentId: string) => {
+    try {
+      setDeploymentsLoading(true)
+      const response = await fetch(
+        `/api/projects/${projectId}/environments/${environmentId}/deployments`,
+      )
+
+      if (!response.ok) {
+        throw new Error('No se pudieron cargar los deployments.')
+      }
+
+      setDeployments((await response.json()) as Deployment[])
+      setError('')
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : 'Error inesperado.')
+    } finally {
+      setDeploymentsLoading(false)
+    }
+  }
+
+  const resetDeploymentForm = () => {
+    setDeploymentForm(emptyDeploymentForm)
+    setEditingDeploymentId(null)
+  }
+
+  const handleManageDeployments = (environmentId: string) => {
+    if (!selectedProjectId) {
+      return
+    }
+
+    setSelectedEnvironmentId(environmentId)
+    resetDeploymentForm()
+    void loadDeployments(selectedProjectId, environmentId)
+  }
+
+  const handleDeploymentEdit = (deployment: Deployment) => {
+    setEditingDeploymentId(deployment.id)
+    setDeploymentForm({
+      version: deployment.version,
+      notes: deployment.notes ?? '',
+      status: normalizeDeploymentStatus(deployment.status),
+    })
+  }
+
+  const handleDeploymentSubmit = async (event: FormEvent) => {
+    event.preventDefault()
+
+    if (!selectedProjectId || !selectedEnvironmentId || !deploymentForm.version.trim()) {
+      setError('La versión del deployment es obligatoria.')
+      return
+    }
+
+    try {
+      setDeploymentSubmitting(true)
+      setError('')
+
+      const baseUrl = `/api/projects/${selectedProjectId}/environments/${selectedEnvironmentId}/deployments`
+      const url = editingDeploymentId ? `${baseUrl}/${editingDeploymentId}` : baseUrl
+      const response = await fetch(url, {
+        method: editingDeploymentId ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          version: deploymentForm.version,
+          notes: deploymentForm.notes || null,
+          ...(editingDeploymentId ? { status: toDeploymentStatusValue(deploymentForm.status) } : {}),
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error(editingDeploymentId ? 'No se pudo actualizar el deployment.' : 'No se pudo crear el deployment.')
+      }
+
+      resetDeploymentForm()
+      await loadDeployments(selectedProjectId, selectedEnvironmentId)
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : 'Error al guardar el deployment.')
+    } finally {
+      setDeploymentSubmitting(false)
+    }
+  }
+
+  const handleDeploymentDelete = async (deploymentId: string) => {
+    if (!selectedProjectId || !selectedEnvironmentId) {
+      return
+    }
+
+    try {
+      const response = await fetch(
+        `/api/projects/${selectedProjectId}/environments/${selectedEnvironmentId}/deployments/${deploymentId}`,
+        { method: 'DELETE' },
+      )
+
+      if (!response.ok) {
+        throw new Error('No se pudo eliminar el deployment.')
+      }
+
+      await loadDeployments(selectedProjectId, selectedEnvironmentId)
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : 'Error al eliminar el deployment.')
     }
   }
 
@@ -571,7 +721,136 @@ function App() {
                             <button className="edit-button" type="button" onClick={() => handleEnvironmentEdit(environment)}>
                               Edit
                             </button>
+                            <button
+                              className="deployment-button"
+                              type="button"
+                              onClick={() => handleManageDeployments(environment.id)}
+                            >
+                              Deployments
+                            </button>
                             <button className="delete-button" type="button" onClick={() => void handleEnvironmentDelete(environment.id)}>
+                              Delete
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      ) : null}
+
+      {selectedProjectId && selectedEnvironmentId ? (
+        <section className="panel deployment-panel">
+          <div className="panel-header">
+            <div>
+              <p className="eyebrow">Deployment history</p>
+              <h2>{environments.find((environment) => environment.id === selectedEnvironmentId)?.name ?? 'Selected environment'}</h2>
+            </div>
+            <div className="action-row">
+              <button
+                className="ghost-button"
+                type="button"
+                onClick={() => void loadDeployments(selectedProjectId, selectedEnvironmentId)}
+              >
+                Refresh
+              </button>
+              <button className="ghost-button" type="button" onClick={() => setSelectedEnvironmentId(null)}>
+                Close
+              </button>
+            </div>
+          </div>
+
+          <form className="project-form" onSubmit={handleDeploymentSubmit}>
+            <div className="form-grid deployment-form-grid">
+              <label>
+                <span>Version</span>
+                <input
+                  value={deploymentForm.version}
+                  onChange={(event) => setDeploymentForm((current) => ({ ...current, version: event.target.value }))}
+                  placeholder="1.2.0"
+                />
+              </label>
+
+              <label>
+                <span>Notes</span>
+                <input
+                  value={deploymentForm.notes}
+                  onChange={(event) => setDeploymentForm((current) => ({ ...current, notes: event.target.value }))}
+                  placeholder="Release notes"
+                />
+              </label>
+
+              {editingDeploymentId ? (
+                <label>
+                  <span>Status</span>
+                  <select
+                    value={deploymentForm.status}
+                    onChange={(event) =>
+                      setDeploymentForm((current) => ({
+                        ...current,
+                        status: event.target.value as DeploymentStatus,
+                      }))
+                    }
+                  >
+                    <option value="Pending">Pending</option>
+                    <option value="InProgress">In progress</option>
+                    <option value="Succeeded">Succeeded</option>
+                    <option value="Failed">Failed</option>
+                  </select>
+                </label>
+              ) : null}
+            </div>
+
+            <div className="action-row">
+              <button className="primary-button" type="submit" disabled={deploymentSubmitting}>
+                {deploymentSubmitting ? 'Saving...' : editingDeploymentId ? 'Update deployment' : 'Create deployment'}
+              </button>
+              {editingDeploymentId ? (
+                <button className="ghost-button" type="button" onClick={resetDeploymentForm}>
+                  Cancel
+                </button>
+              ) : null}
+            </div>
+          </form>
+
+          {deploymentsLoading ? (
+            <p className="empty-state">Loading deployments...</p>
+          ) : deployments.length === 0 ? (
+            <p className="empty-state">No deployments yet.</p>
+          ) : (
+            <div className="table-wrapper deployment-table-wrapper">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Version</th>
+                    <th>Notes</th>
+                    <th>Status</th>
+                    <th>Deployed</th>
+                    <th>Created</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {deployments.map((deployment) => {
+                    const statusLabel = normalizeDeploymentStatus(deployment.status)
+
+                    return (
+                      <tr key={deployment.id}>
+                        <td><strong>{deployment.version}</strong></td>
+                        <td>{deployment.notes ?? '-'}</td>
+                        <td><span className={`status-badge ${statusLabel.toLowerCase()}`}>{statusLabel}</span></td>
+                        <td>{deployment.deployedAt ? new Date(deployment.deployedAt).toLocaleDateString() : '-'}</td>
+                        <td>{new Date(deployment.createdAt).toLocaleDateString()}</td>
+                        <td>
+                          <div className="row-actions">
+                            <button className="edit-button" type="button" onClick={() => handleDeploymentEdit(deployment)}>
+                              Edit
+                            </button>
+                            <button className="delete-button" type="button" onClick={() => void handleDeploymentDelete(deployment.id)}>
                               Delete
                             </button>
                           </div>

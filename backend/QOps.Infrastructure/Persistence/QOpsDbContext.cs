@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using QOps.Domain.Deployments;
 using QOps.Domain.Environments;
 using QOps.Domain.Projects;
 using DomainEnvironment = QOps.Domain.Environments.Environment;
@@ -10,6 +11,8 @@ public sealed class QOpsDbContext(DbContextOptions<QOpsDbContext> options) : DbC
     public DbSet<Project> Projects => Set<Project>();
 
     public DbSet<DomainEnvironment> Environments => Set<DomainEnvironment>();
+
+    public DbSet<Deployment> Deployments => Set<Deployment>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -34,6 +37,18 @@ public sealed class QOpsDbContext(DbContextOptions<QOpsDbContext> options) : DbC
             entity.Property(environment => environment.Url).HasMaxLength(500).IsRequired();
             entity.Property(environment => environment.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
             entity.HasIndex(environment => new { environment.ProjectId, environment.Name }).IsUnique();
+        });
+
+        modelBuilder.Entity<Deployment>(entity =>
+        {
+            entity.ToTable("Deployments");
+            entity.HasKey(deployment => deployment.Id);
+            entity.Property(deployment => deployment.ProjectId).IsRequired();
+            entity.Property(deployment => deployment.EnvironmentId).IsRequired();
+            entity.Property(deployment => deployment.Version).HasMaxLength(40).IsRequired();
+            entity.Property(deployment => deployment.Notes).HasMaxLength(2000);
+            entity.Property(deployment => deployment.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
+            entity.HasIndex(deployment => new { deployment.ProjectId, deployment.EnvironmentId, deployment.CreatedAt });
         });
     }
 }

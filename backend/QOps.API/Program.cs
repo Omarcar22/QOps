@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using QOps.Application.Environments;
+using QOps.Application.Deployments;
 using QOps.Application.Projects;
 using QOps.Infrastructure.Persistence;
 
@@ -16,6 +17,8 @@ builder.Services.AddScoped<IProjectRepository, ProjectRepository>();
 builder.Services.AddScoped<IProjectService, ProjectService>();
 builder.Services.AddScoped<IEnvironmentRepository, EnvironmentRepository>();
 builder.Services.AddScoped<IEnvironmentService, EnvironmentService>();
+builder.Services.AddScoped<IDeploymentRepository, DeploymentRepository>();
+builder.Services.AddScoped<IDeploymentService, DeploymentService>();
 
 var app = builder.Build();
 
