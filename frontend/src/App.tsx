@@ -6,6 +6,7 @@ type ProjectStatus = 'Active' | 'Archived'
 type EnvironmentType = 'Development' | 'Staging' | 'Production'
 type EnvironmentStatus = 'Active' | 'Inactive'
 type DeploymentStatus = 'Pending' | 'InProgress' | 'Succeeded' | 'Failed'
+type ReleaseStatus = 'Draft' | 'Published' | 'Archived'
 
 type Project = {
   id: string
@@ -37,6 +38,18 @@ type Deployment = {
   notes: string | null
   status: DeploymentStatus | number | string
   deployedAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+type Release = {
+  id: string
+  projectId: string
+  version: string
+  notes: string | null
+  commitSha: string | null
+  status: ReleaseStatus | number | string
+  publishedAt: string | null
   createdAt: string
   updatedAt: string
 }
@@ -83,6 +96,16 @@ const normalizeDeploymentStatus = (status: Deployment['status']): DeploymentStat
 const toDeploymentStatusValue = (status: DeploymentStatus) =>
   ({ Pending: 0, InProgress: 1, Succeeded: 2, Failed: 3 })[status]
 
+const normalizeReleaseStatus = (status: Release['status']): ReleaseStatus => {
+  if (typeof status === 'number') {
+    return ['Draft', 'Published', 'Archived'][status] as ReleaseStatus
+  }
+
+  return status === 'Published' || status === 'Archived' ? status : 'Draft'
+}
+
+const toReleaseStatusValue = (status: ReleaseStatus) => ({ Draft: 0, Published: 1, Archived: 2 })[status]
+
 type ProjectForm = {
   name: string
   description: string
@@ -125,6 +148,20 @@ const emptyDeploymentForm: DeploymentForm = {
   status: 'Pending',
 }
 
+type ReleaseForm = {
+  version: string
+  notes: string
+  commitSha: string
+  status: ReleaseStatus
+}
+
+const emptyReleaseForm: ReleaseForm = {
+    version: '',
+    notes: '',
+    commitSha: '',
+    status: 'Draft',
+}
+
 function App() {
   const [projects, setProjects] = useState<Project[]>([])
   const [form, setForm] = useState<ProjectForm>(emptyForm)
@@ -144,6 +181,12 @@ function App() {
   const [editingDeploymentId, setEditingDeploymentId] = useState<string | null>(null)
   const [deploymentsLoading, setDeploymentsLoading] = useState(false)
   const [deploymentSubmitting, setDeploymentSubmitting] = useState(false)
+  const [selectedReleaseProjectId, setSelectedReleaseProjectId] = useState<string | null>(null)
+  const [releases, setReleases] = useState<Release[]>([])
+  const [releaseForm, setReleaseForm] = useState<ReleaseForm>(emptyReleaseForm)
+  const [editingReleaseId, setEditingReleaseId] = useState<string | null>(null)
+  const [releasesLoading, setReleasesLoading] = useState(false)
+  const [releaseSubmitting, setReleaseSubmitting] = useState(false)
 
   const loadProjects = async () => {
     try {
@@ -433,6 +476,103 @@ function App() {
     }
   }
 
+  const loadReleases = async (projectId: string) => {
+    try {
+      setReleasesLoading(true)
+      const response = await fetch(`/api/projects/${projectId}/releases`)
+
+      if (!response.ok) {
+        throw new Error('No se pudieron cargar los releases.')
+      }
+
+      setReleases((await response.json()) as Release[])
+      setError('')
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : 'Error inesperado.')
+    } finally {
+      setReleasesLoading(false)
+    }
+  }
+
+  const resetReleaseForm = () => {
+    setReleaseForm(emptyReleaseForm)
+    setEditingReleaseId(null)
+  }
+
+  const handleManageReleases = (projectId: string) => {
+    setSelectedReleaseProjectId(projectId)
+    resetReleaseForm()
+    void loadReleases(projectId)
+  }
+
+  const handleReleaseEdit = (release: Release) => {
+    setEditingReleaseId(release.id)
+    setReleaseForm({
+      version: release.version,
+      notes: release.notes ?? '',
+      commitSha: release.commitSha ?? '',
+      status: normalizeReleaseStatus(release.status),
+    })
+  }
+
+  const handleReleaseSubmit = async (event: FormEvent) => {
+    event.preventDefault()
+
+    if (!selectedReleaseProjectId || !releaseForm.version.trim()) {
+      setError('La versión del release es obligatoria.')
+      return
+    }
+
+    try {
+      setReleaseSubmitting(true)
+      setError('')
+
+      const baseUrl = `/api/projects/${selectedReleaseProjectId}/releases`
+      const url = editingReleaseId ? `${baseUrl}/${editingReleaseId}` : baseUrl
+      const response = await fetch(url, {
+        method: editingReleaseId ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          version: releaseForm.version,
+          notes: releaseForm.notes || null,
+          commitSha: releaseForm.commitSha || null,
+          ...(editingReleaseId ? { status: toReleaseStatusValue(releaseForm.status) } : {}),
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error(editingReleaseId ? 'No se pudo actualizar el release.' : 'No se pudo crear el release.')
+      }
+
+      resetReleaseForm()
+      await loadReleases(selectedReleaseProjectId)
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : 'Error al guardar el release.')
+    } finally {
+      setReleaseSubmitting(false)
+    }
+  }
+
+  const handleReleaseDelete = async (releaseId: string) => {
+    if (!selectedReleaseProjectId) {
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/projects/${selectedReleaseProjectId}/releases/${releaseId}`, {
+        method: 'DELETE',
+      })
+
+      if (!response.ok) {
+        throw new Error('No se pudo eliminar el release.')
+      }
+
+      await loadReleases(selectedReleaseProjectId)
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : 'Error al eliminar el release.')
+    }
+  }
+
   const handleDelete = async (id: string) => {
     try {
       const response = await fetch(`/api/projects/${id}`, {
@@ -448,6 +588,11 @@ function App() {
         setSelectedProjectId(null)
         setEnvironments([])
       }
+      if (selectedReleaseProjectId === id) {
+        setSelectedReleaseProjectId(null)
+        setReleases([])
+      }
+
     } catch (deleteError) {
       setError(deleteError instanceof Error ? deleteError.message : 'Error al eliminar.')
     }
@@ -590,6 +735,14 @@ function App() {
                           >
                             Environments
                           </button>
+                          <button
+                            className="release-button"
+                            type="button"
+                            onClick={() => handleManageReleases(project.id)}
+                          >
+                            Releases
+                          </button>
+
                           <button className="delete-button" type="button" onClick={() => void handleDelete(project.id)}>
                             Delete
                           </button>
@@ -603,6 +756,132 @@ function App() {
           </div>
         )}
       </section>
+
+      {selectedReleaseProjectId ? (
+        <section className="panel release-panel">
+          <div className="panel-header">
+            <div>
+              <p className="eyebrow">Release history</p>
+              <h2>{projects.find((project) => project.id === selectedReleaseProjectId)?.name ?? 'Selected project'}</h2>
+            </div>
+            <div className="action-row">
+              <button className="ghost-button" type="button" onClick={() => void loadReleases(selectedReleaseProjectId)}>
+                Refresh
+              </button>
+              <button className="ghost-button" type="button" onClick={() => setSelectedReleaseProjectId(null)}>
+                Close
+              </button>
+            </div>
+          </div>
+
+          <form className="project-form" onSubmit={handleReleaseSubmit}>
+            <div className="form-grid release-form-grid">
+              <label>
+                <span>Version</span>
+                <input
+                  value={releaseForm.version}
+                  onChange={(event) => setReleaseForm((current) => ({ ...current, version: event.target.value }))}
+                  placeholder="1.0.0"
+                />
+              </label>
+
+              <label>
+                <span>Release notes</span>
+                <input
+                  value={releaseForm.notes}
+                  onChange={(event) => setReleaseForm((current) => ({ ...current, notes: event.target.value }))}
+                  placeholder="First stable release"
+                />
+              </label>
+
+              <label>
+                <span>Commit SHA</span>
+                <input
+                  value={releaseForm.commitSha}
+                  onChange={(event) => setReleaseForm((current) => ({ ...current, commitSha: event.target.value }))}
+                  placeholder="abc123"
+                />
+              </label>
+
+              {editingReleaseId ? (
+                <label>
+                  <span>Status</span>
+                  <select
+                    value={releaseForm.status}
+                    onChange={(event) =>
+                      setReleaseForm((current) => ({
+                        ...current,
+                        status: event.target.value as ReleaseStatus,
+                      }))
+                    }
+                  >
+                    <option value="Draft">Draft</option>
+                    <option value="Published">Published</option>
+                    <option value="Archived">Archived</option>
+                  </select>
+                </label>
+              ) : null}
+            </div>
+
+            <div className="action-row">
+              <button className="primary-button" type="submit" disabled={releaseSubmitting}>
+                {releaseSubmitting ? 'Saving...' : editingReleaseId ? 'Update release' : 'Create release'}
+              </button>
+              {editingReleaseId ? (
+                <button className="ghost-button" type="button" onClick={resetReleaseForm}>
+                  Cancel
+                </button>
+              ) : null}
+            </div>
+          </form>
+
+          {releasesLoading ? (
+            <p className="empty-state">Loading releases...</p>
+          ) : releases.length === 0 ? (
+            <p className="empty-state">No releases yet.</p>
+          ) : (
+            <div className="table-wrapper release-table-wrapper">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Version</th>
+                    <th>Notes</th>
+                    <th>Commit</th>
+                    <th>Status</th>
+                    <th>Published</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {releases.map((release) => {
+                    const statusLabel = normalizeReleaseStatus(release.status)
+
+                    return (
+                      <tr key={release.id}>
+                        <td><strong>{release.version}</strong></td>
+                        <td>{release.notes ?? '-'}</td>
+                        <td>{release.commitSha ?? '-'}</td>
+                        <td><span className={`status-badge ${statusLabel.toLowerCase()}`}>{statusLabel}</span></td>
+                        <td>{release.publishedAt ? new Date(release.publishedAt).toLocaleDateString() : '-'}</td>
+                        <td>
+                          <div className="row-actions">
+                            <button className="edit-button" type="button" onClick={() => handleReleaseEdit(release)}>
+                              Edit
+                            </button>
+                            <button className="delete-button" type="button" onClick={() => void handleReleaseDelete(release.id)}>
+                              Delete
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      ) : null}
 
       {selectedProjectId ? (
         <section className="panel environment-panel">

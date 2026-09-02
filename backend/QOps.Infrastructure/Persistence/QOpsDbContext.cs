@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using QOps.Domain.Deployments;
 using QOps.Domain.Environments;
 using QOps.Domain.Projects;
+using QOps.Domain.Releases;
 using DomainEnvironment = QOps.Domain.Environments.Environment;
 
 namespace QOps.Infrastructure.Persistence;
@@ -13,6 +14,8 @@ public sealed class QOpsDbContext(DbContextOptions<QOpsDbContext> options) : DbC
     public DbSet<DomainEnvironment> Environments => Set<DomainEnvironment>();
 
     public DbSet<Deployment> Deployments => Set<Deployment>();
+
+    public DbSet<Release> Releases => Set<Release>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -49,6 +52,18 @@ public sealed class QOpsDbContext(DbContextOptions<QOpsDbContext> options) : DbC
             entity.Property(deployment => deployment.Notes).HasMaxLength(2000);
             entity.Property(deployment => deployment.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
             entity.HasIndex(deployment => new { deployment.ProjectId, deployment.EnvironmentId, deployment.CreatedAt });
+        });
+
+        modelBuilder.Entity<Release>(entity =>
+        {
+            entity.ToTable("Releases");
+            entity.HasKey(release => release.Id);
+            entity.Property(release => release.ProjectId).IsRequired();
+            entity.Property(release => release.Version).HasMaxLength(40).IsRequired();
+            entity.Property(release => release.Notes).HasMaxLength(2000);
+            entity.Property(release => release.CommitSha).HasMaxLength(100);
+            entity.Property(release => release.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
+            entity.HasIndex(release => new { release.ProjectId, release.Version }).IsUnique();
         });
     }
 }

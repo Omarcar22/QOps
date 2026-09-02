@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using QOps.Application.Environments;
 using QOps.Application.Deployments;
 using QOps.Application.Projects;
+using QOps.Application.Releases;
 using QOps.Infrastructure.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -19,6 +20,8 @@ builder.Services.AddScoped<IEnvironmentRepository, EnvironmentRepository>();
 builder.Services.AddScoped<IEnvironmentService, EnvironmentService>();
 builder.Services.AddScoped<IDeploymentRepository, DeploymentRepository>();
 builder.Services.AddScoped<IDeploymentService, DeploymentService>();
+builder.Services.AddScoped<IReleaseRepository, ReleaseRepository>();
+builder.Services.AddScoped<IReleaseService, ReleaseService>();
 
 var app = builder.Build();
 
