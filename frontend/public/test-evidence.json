@@ -1,0 +1,36 @@
+{
+  "project": "QOps",
+  "generatedAt": "2026-09-06T00:19:16.352Z",
+  "summary": {
+    "total": 3,
+    "passed": 2,
+    "failed": 0,
+    "planned": 1
+  },
+  "tests": [
+    {
+      "name": "Pipelines API regression",
+      "suite": "QOps.ApiTests",
+      "status": "Passed",
+      "duration": "7.6s",
+      "result": "3/3 pipeline tests passed",
+      "executedAt": "2026-09-06T00:19:16.354Z"
+    },
+    {
+      "name": "Frontend production build",
+      "suite": "Vite / React",
+      "status": "Passed",
+      "duration": "2.3s",
+      "result": "Build completed successfully",
+      "executedAt": "2026-09-06T00:19:16.354Z"
+    },
+    {
+      "name": "Playwright validation stage",
+      "suite": "Automation readiness",
+      "status": "Planned",
+      "duration": "Pending",
+      "result": "Pipeline definition ready for browser automation execution",
+      "executedAt": "2026-09-06T00:19:16.354Z"
+    }
+  ]
+}

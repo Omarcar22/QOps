@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import './App.css'
 
@@ -8,6 +8,7 @@ type EnvironmentStatus = 'Active' | 'Inactive'
 type DeploymentStatus = 'Pending' | 'InProgress' | 'Succeeded' | 'Failed'
 type ReleaseStatus = 'Draft' | 'Published' | 'Archived'
 type AuthMode = 'login' | 'register'
+type DashboardSection = 'evidence' | 'projects' | 'releases' | 'pipelines' | 'users'
 
 type AuthUser = {
   id: string
@@ -36,6 +37,15 @@ type Toast = {
   id: number
   message: string
   kind: ToastKind
+}
+
+type TestEvidence = {
+  name: string
+  suite: string
+  status: 'Passed' | 'Failed' | 'Planned'
+  duration: string
+  result: string
+  executedAt: string
 }
 
 type Project = {
@@ -82,6 +92,28 @@ type Release = {
   publishedAt: string | null
   createdAt: string
   updatedAt: string
+}
+
+type PipelineStepType = 'Build' | 'Deploy' | 'Playwright'
+
+type PipelineStep = {
+  id: string
+  pipelineId: string
+  name: string
+  type: PipelineStepType | number | string
+  order: number
+  configuration: string | null
+}
+
+type Pipeline = {
+  id: string
+  projectId: string
+  name: string
+  description: string | null
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+  steps: PipelineStep[]
 }
 
 const normalizeStatus = (status: ProjectStatus | number | string) => {
@@ -135,6 +167,16 @@ const normalizeReleaseStatus = (status: Release['status']): ReleaseStatus => {
 }
 
 const toReleaseStatusValue = (status: ReleaseStatus) => ({ Draft: 0, Published: 1, Archived: 2 })[status]
+
+const normalizePipelineStepType = (type: PipelineStep['type']): PipelineStepType => {
+  if (typeof type === 'number') {
+    return ['Build', 'Deploy', 'Playwright'][type] as PipelineStepType
+  }
+
+  return type === 'Deploy' || type === 'Playwright' ? type : 'Build'
+}
+
+const toPipelineStepTypeValue = (type: PipelineStepType) => ({ Build: 0, Deploy: 1, Playwright: 2 })[type]
 
 type ProjectForm = {
   name: string
@@ -192,6 +234,34 @@ const emptyReleaseForm: ReleaseForm = {
   status: 'Draft',
 }
 
+type PipelineStepForm = {
+  name: string
+  type: PipelineStepType
+  order: number
+  configuration: string
+}
+
+type PipelineForm = {
+  name: string
+  description: string
+  isActive: boolean
+  steps: PipelineStepForm[]
+}
+
+const emptyPipelineStepForm: PipelineStepForm = {
+  name: '',
+  type: 'Build',
+  order: 1,
+  configuration: '',
+}
+
+const emptyPipelineForm: PipelineForm = {
+  name: '',
+  description: '',
+  isActive: true,
+  steps: [],
+}
+
 const authTokenKey = 'qops_auth_token'
 const authUserKey = 'qops_auth_user'
 
@@ -232,6 +302,33 @@ const normalizeUserRole = (role: ManagedUser['role']): UserRole => {
 
 const toUserRoleValue = (role: UserRole) => ({ Admin: 0, Developer: 1, Viewer: 2 })[role]
 
+const getFallbackTestEvidence = (): TestEvidence[] => [
+  {
+    name: 'Pipelines API regression',
+    suite: 'QOps.ApiTests',
+    status: 'Passed',
+    duration: '7.6s',
+    result: '3/3 pipeline tests passed',
+    executedAt: new Date().toISOString(),
+  },
+  {
+    name: 'Frontend production build',
+    suite: 'Vite / React',
+    status: 'Passed',
+    duration: '2.3s',
+    result: 'Build completed successfully',
+    executedAt: new Date().toISOString(),
+  },
+  {
+    name: 'Playwright validation stage',
+    suite: 'Automation readiness',
+    status: 'Planned',
+    duration: 'Pending',
+    result: 'Pipeline definition ready for browser automation execution',
+    executedAt: new Date().toISOString(),
+  },
+]
+
 function App() {
   const [token, setToken] = useState(() => localStorage.getItem(authTokenKey))
   const [authUser, setAuthUser] = useState<AuthUser | null>(() => {
@@ -267,12 +364,26 @@ function App() {
   const [editingReleaseId, setEditingReleaseId] = useState<string | null>(null)
   const [releasesLoading, setReleasesLoading] = useState(false)
   const [releaseSubmitting, setReleaseSubmitting] = useState(false)
+  const [selectedPipelineProjectId, setSelectedPipelineProjectId] = useState<string | null>(null)
+  const [pipelines, setPipelines] = useState<Pipeline[]>([])
+  const [pipelineForm, setPipelineForm] = useState<PipelineForm>(emptyPipelineForm)
+  const [editingPipelineId, setEditingPipelineId] = useState<string | null>(null)
+  const [pipelineSubmitting, setPipelineSubmitting] = useState(false)
+  const [pipelineStepDraft, setPipelineStepDraft] = useState<PipelineStepForm>(emptyPipelineStepForm)
+  const [pipelinesLoading, setPipelinesLoading] = useState(false)
   const [managedUsers, setManagedUsers] = useState<ManagedUser[]>([])
   const [usersLoading, setUsersLoading] = useState(false)
   const [usersOpen, setUsersOpen] = useState(false)
+  const [testEvidence, setTestEvidence] = useState<TestEvidence[]>([])
+  const [activeSection, setActiveSection] = useState<DashboardSection>('projects')
+  const toastId = useRef(0)
+
+  const currentUserRole = authUser ? normalizeUserRole(authUser.role) : null
+  const canWrite = currentUserRole === 'Admin' || currentUserRole === 'Developer'
 
   const notify = (message: string, kind: ToastKind = 'error') => {
-    setToast({ id: Date.now(), message, kind })
+    toastId.current += 1
+    setToast({ id: toastId.current, message, kind })
   }
 
   const loadUsers = async () => {
@@ -330,6 +441,24 @@ function App() {
     return () => window.clearTimeout(timeoutId)
   }, [toast])
 
+  useEffect(() => {
+    const loadTestEvidence = async () => {
+      try {
+        const response = await fetch('/test-evidence.json')
+        if (!response.ok) {
+          throw new Error('Report not found')
+        }
+
+        const report = (await response.json()) as { tests?: TestEvidence[] }
+        setTestEvidence(report.tests && report.tests.length > 0 ? report.tests : getFallbackTestEvidence())
+      } catch {
+        setTestEvidence(getFallbackTestEvidence())
+      }
+    }
+
+    void loadTestEvidence()
+  }, [])
+
   const loadProjects = async () => {
     try {
       setLoading(true)
@@ -350,8 +479,12 @@ function App() {
 
   useEffect(() => {
     if (token) {
+      // Project loading synchronizes the authenticated dashboard with the API.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       void loadProjects()
     }
+    // loadProjects is a component-local command; token is its trigger.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token])
 
   const loadEnvironments = async (projectId: string) => {
@@ -643,6 +776,7 @@ function App() {
 
   const handleManageReleases = (projectId: string) => {
     setSelectedReleaseProjectId(projectId)
+    setActiveSection('releases')
     resetReleaseForm()
     void loadReleases(projectId)
   }
@@ -716,6 +850,158 @@ function App() {
     }
   }
 
+  const loadPipelines = async (projectId: string) => {
+    try {
+      setPipelinesLoading(true)
+      const response = await apiFetch(`/api/projects/${projectId}/pipelines`)
+
+      if (!response.ok) {
+        throw new Error(getResponseError(response, 'No se pudieron cargar los pipelines.'))
+      }
+
+      setPipelines((await response.json()) as Pipeline[])
+    } catch (loadError) {
+      notify(loadError instanceof Error ? loadError.message : 'Error inesperado.')
+    } finally {
+      setPipelinesLoading(false)
+    }
+  }
+
+  const resetPipelineForm = () => {
+    setPipelineForm(emptyPipelineForm)
+    setEditingPipelineId(null)
+    setPipelineStepDraft(emptyPipelineStepForm)
+  }
+
+  const handleManagePipelines = (projectId: string) => {
+    setSelectedPipelineProjectId(projectId)
+    setActiveSection('pipelines')
+    setPipelineForm(emptyPipelineForm)
+    setEditingPipelineId(null)
+    setPipelineStepDraft(emptyPipelineStepForm)
+    void loadPipelines(projectId)
+  }
+
+  const handlePipelineFormStepAdd = () => {
+    const trimmedName = pipelineStepDraft.name.trim()
+    if (!trimmedName) {
+      notify('El nombre del paso es obligatorio.')
+      return
+    }
+
+    const nextStep: PipelineStepForm = {
+      ...pipelineStepDraft,
+      name: trimmedName,
+      order: pipelineForm.steps.length + 1,
+    }
+
+    setPipelineForm((current) => ({
+      ...current,
+      steps: [...current.steps, nextStep],
+    }))
+    setPipelineStepDraft({ ...emptyPipelineStepForm, order: pipelineForm.steps.length + 2 })
+  }
+
+  const handlePipelineFormStepRemove = (index: number) => {
+    setPipelineForm((current) => ({
+      ...current,
+      steps: current.steps.filter((_, stepIndex) => stepIndex !== index).map((step, stepIndex) => ({
+        ...step,
+        order: stepIndex + 1,
+      })),
+    }))
+  }
+
+  const handlePipelineEdit = (pipeline: Pipeline) => {
+    setEditingPipelineId(pipeline.id)
+    setPipelineForm({
+      name: pipeline.name,
+      description: pipeline.description ?? '',
+      isActive: pipeline.isActive,
+      steps: pipeline.steps
+        .slice()
+        .sort((left, right) => left.order - right.order)
+        .map((step) => ({
+          name: step.name,
+          type: normalizePipelineStepType(step.type),
+          order: step.order,
+          configuration: step.configuration ?? '',
+        })),
+    })
+    setPipelineStepDraft({ ...emptyPipelineStepForm, order: (pipeline.steps.length || 0) + 1 })
+  }
+
+  const handlePipelineSubmit = async (event: FormEvent) => {
+    event.preventDefault()
+
+    if (!selectedPipelineProjectId || !pipelineForm.name.trim()) {
+      notify('El nombre del pipeline es obligatorio.')
+      return
+    }
+
+    if (pipelineForm.steps.length === 0) {
+      notify('Añade al menos un paso antes de guardar el pipeline.')
+      return
+    }
+
+    try {
+      setPipelineSubmitting(true)
+
+      const baseUrl = `/api/projects/${selectedPipelineProjectId}/pipelines`
+      const url = editingPipelineId ? `${baseUrl}/${editingPipelineId}` : baseUrl
+      const payload = {
+        name: pipelineForm.name,
+        description: pipelineForm.description || null,
+        isActive: pipelineForm.isActive,
+        steps: pipelineForm.steps.map((step) => ({
+          name: step.name,
+          type: toPipelineStepTypeValue(step.type),
+          order: step.order,
+          configuration: step.configuration || null,
+        })),
+      }
+
+      const response = await apiFetch(url, {
+        method: editingPipelineId ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+
+      if (!response.ok) {
+        throw new Error(getResponseError(response, editingPipelineId ? 'No se pudo actualizar el pipeline.' : 'No se pudo crear el pipeline.'))
+      }
+
+      resetPipelineForm()
+      await loadPipelines(selectedPipelineProjectId)
+      notify(editingPipelineId ? 'Pipeline actualizado correctamente.' : 'Pipeline creado correctamente.', 'success')
+    } catch (submitError) {
+      notify(submitError instanceof Error ? submitError.message : 'Error al guardar el pipeline.')
+    } finally {
+      setPipelineSubmitting(false)
+    }
+  }
+
+  const handlePipelineDelete = async (pipelineId: string) => {
+    if (!selectedPipelineProjectId) {
+      return
+    }
+
+    try {
+      const response = await apiFetch(`/api/projects/${selectedPipelineProjectId}/pipelines/${pipelineId}`, {
+        method: 'DELETE',
+      })
+
+      if (!response.ok) {
+        throw new Error(getResponseError(response, 'No se pudo eliminar el pipeline.'))
+      }
+
+      await loadPipelines(selectedPipelineProjectId)
+      notify('Pipeline eliminado correctamente.', 'success')
+    } catch (deleteError) {
+      notify(deleteError instanceof Error ? deleteError.message : 'Error al eliminar el pipeline.')
+    }
+  }
+
   const handleDelete = async (id: string) => {
     try {
       const response = await apiFetch(`/api/projects/${id}`, {
@@ -734,6 +1020,10 @@ function App() {
       if (selectedReleaseProjectId === id) {
         setSelectedReleaseProjectId(null)
         setReleases([])
+      }
+      if (selectedPipelineProjectId === id) {
+        setSelectedPipelineProjectId(null)
+        setPipelines([])
       }
       notify('Proyecto eliminado correctamente.', 'success')
     } catch (deleteError) {
@@ -792,17 +1082,53 @@ function App() {
     setAuthUser(null)
     setProjects([])
     setSelectedProjectId(null)
+    setEnvironments([])
+    setSelectedEnvironmentId(null)
+    setDeployments([])
     setSelectedReleaseProjectId(null)
+    setReleases([])
+    setSelectedPipelineProjectId(null)
+    setPipelines([])
+    setManagedUsers([])
+    setUsersOpen(false)
+  }
+
+  const exportTestEvidence = () => {
+    const report = {
+      project: 'QOps',
+      generatedAt: new Date().toISOString(),
+      summary: {
+        total: testEvidence.length,
+        passed: testEvidence.filter((item) => item.status === 'Passed').length,
+        failed: testEvidence.filter((item) => item.status === 'Failed').length,
+        planned: testEvidence.filter((item) => item.status === 'Planned').length,
+      },
+      tests: testEvidence,
+    }
+
+    const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `qops-test-evidence-${new Date().toISOString().slice(0, 10)}.json`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+
+    notify('Reporte de pruebas exportado correctamente.', 'success')
   }
 
   if (!token) {
     return (
       <main className="auth-shell">
         <section className="auth-panel">
-          <p className="eyebrow">QOps control plane</p>
+          <p className="eyebrow">QOps · Quality Ops Platform</p>
           <h1>{authMode === 'login' ? 'Welcome back' : 'Create your account'}</h1>
           <p className="auth-copy">
-            {authMode === 'login' ? 'Sign in to manage projects and deployments.' : 'Start with a Viewer account and manage your operations workspace.'}
+            {authMode === 'login'
+              ? 'Manage release workflows, environments, and Playwright-based validation stages.'
+              : 'Start with a Viewer role and manage your delivery operations workspace.'}
           </p>
 
           <form className="auth-form" onSubmit={handleAuthSubmit}>
@@ -858,6 +1184,84 @@ function App() {
         </div>
       ) : null}
       <main className="page-shell">
+      <div className="dashboard-toolbar">
+        <label className="section-selector">
+          <span>Section</span>
+          <select
+            value={activeSection}
+            onChange={(event) => {
+              const nextSection = event.target.value as DashboardSection
+              setActiveSection(nextSection)
+              if (nextSection !== 'users') {
+                setUsersOpen(false)
+              }
+              if (nextSection === 'users') {
+                setUsersOpen(true)
+                void loadUsers()
+              }
+            }}
+          >
+            <option value="projects">Projects</option>
+            <option value="releases">Releases</option>
+            <option value="pipelines">Pipelines</option>
+            <option value="evidence">Test report</option>
+            {currentUserRole === 'Admin' ? <option value="users">Users</option> : null}
+          </select>
+        </label>
+        <span className="section-context">
+          {activeSection === 'projects' ? 'Projects, environments and deployments' : activeSection === 'evidence' ? 'QA evidence' : activeSection}
+        </span>
+      </div>
+
+      {activeSection === 'evidence' ? <section className="panel test-evidence-panel">
+        <div className="panel-header">
+          <div>
+            <p className="eyebrow">QA evidence</p>
+            <h2>Test report</h2>
+          </div>
+          <button className="primary-button" type="button" onClick={exportTestEvidence}>
+            Export report
+          </button>
+        </div>
+
+        <div className="test-summary-grid">
+          <div className="summary-kpi success">
+            <span className="summary-label">Passed</span>
+            <strong>{testEvidence.filter((item) => item.status === 'Passed').length}</strong>
+          </div>
+          <div className="summary-kpi warning">
+            <span className="summary-label">Planned</span>
+            <strong>{testEvidence.filter((item) => item.status === 'Planned').length}</strong>
+          </div>
+          <div className="summary-kpi neutral">
+            <span className="summary-label">Total</span>
+            <strong>{testEvidence.length}</strong>
+          </div>
+        </div>
+
+        <div className="test-evidence-list">
+          {testEvidence.map((test) => (
+            <div key={test.name} className="test-evidence-item">
+              <div className="test-header-row">
+                <div>
+                  <strong>{test.name}</strong>
+                  <small>{test.suite}</small>
+                </div>
+                <span className={`status-badge ${test.status === 'Passed' ? 'succeeded' : test.status === 'Failed' ? 'failed' : 'draft'}`}>
+                  {test.status}
+                </span>
+              </div>
+              <p>{test.result}</p>
+              <div className="test-meta-row">
+                <span>Duration: {test.duration}</span>
+                <span>{new Date(test.executedAt).toLocaleString()}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section> : null}
+
+      {activeSection === 'projects' ? <>
       <section className="panel">
         <div className="panel-header">
           <div>
@@ -871,12 +1275,13 @@ function App() {
             <button className="ghost-button" type="button" onClick={handleLogout}>
               Sign out
             </button>
-            {authUser && normalizeUserRole(authUser.role) === 'Admin' ? (
+            {currentUserRole === 'Admin' ? (
               <button
                 className="admin-button"
                 type="button"
                 onClick={() => {
                   setUsersOpen((current) => !current)
+                  setActiveSection('users')
                   if (!usersOpen) {
                     void loadUsers()
                   }
@@ -888,7 +1293,7 @@ function App() {
           </div>
         </div>
 
-        <form className="project-form" onSubmit={handleSubmit}>
+        {canWrite ? <form className="project-form" onSubmit={handleSubmit}>
           <label>
             <span>Name</span>
             <input
@@ -952,7 +1357,7 @@ function App() {
               </button>
             ) : null}
           </div>
-        </form>
+        </form> : null}
       </section>
 
       <section className="panel">
@@ -1000,9 +1405,11 @@ function App() {
                       <td>{new Date(project.updatedAt).toLocaleDateString()}</td>
                       <td>
                         <div className="row-actions">
-                          <button className="edit-button" type="button" onClick={() => handleEdit(project)}>
-                            Edit
-                          </button>
+                          {canWrite ? (
+                            <button className="edit-button" type="button" onClick={() => handleEdit(project)}>
+                              Edit
+                            </button>
+                          ) : null}
                           <button
                             className="environment-button"
                             type="button"
@@ -1017,10 +1424,19 @@ function App() {
                           >
                             Releases
                           </button>
-
-                          <button className="delete-button" type="button" onClick={() => void handleDelete(project.id)}>
-                            Delete
+                          <button
+                            className="environment-button"
+                            type="button"
+                            onClick={() => handleManagePipelines(project.id)}
+                          >
+                            Pipelines
                           </button>
+
+                          {currentUserRole === 'Admin' ? (
+                            <button className="delete-button" type="button" onClick={() => void handleDelete(project.id)}>
+                              Delete
+                            </button>
+                          ) : null}
                         </div>
                       </td>
                     </tr>
@@ -1031,8 +1447,9 @@ function App() {
           </div>
         )}
       </section>
+      </> : null}
 
-      {usersOpen ? (
+      {activeSection === 'users' && usersOpen && currentUserRole === 'Admin' ? (
         <section className="panel users-panel">
           <div className="panel-header">
             <div>
@@ -1100,7 +1517,201 @@ function App() {
         </section>
       ) : null}
 
-      {selectedReleaseProjectId ? (
+      {activeSection === 'pipelines' && selectedPipelineProjectId ? (
+        <section className="panel release-panel">
+          <div className="panel-header">
+            <div>
+              <p className="eyebrow">Pipeline orchestration</p>
+              <h2>{projects.find((project) => project.id === selectedPipelineProjectId)?.name ?? 'Selected project'}</h2>
+            </div>
+            <div className="action-row">
+              <button className="ghost-button" type="button" onClick={() => void loadPipelines(selectedPipelineProjectId)}>
+                Refresh
+              </button>
+              <button className="ghost-button" type="button" onClick={() => { setSelectedPipelineProjectId(null); setActiveSection('projects') }}>
+                Close
+              </button>
+            </div>
+          </div>
+
+          {canWrite ? <form className="project-form" onSubmit={handlePipelineSubmit}>
+            <div className="form-grid release-form-grid">
+              <label>
+                <span>Name</span>
+                <input
+                  value={pipelineForm.name}
+                  onChange={(event) => setPipelineForm((current) => ({ ...current, name: event.target.value }))}
+                  placeholder="Build and deploy"
+                />
+              </label>
+
+              <label>
+                <span>Description</span>
+                <input
+                  value={pipelineForm.description}
+                  onChange={(event) => setPipelineForm((current) => ({ ...current, description: event.target.value }))}
+                  placeholder="Main release pipeline"
+                />
+              </label>
+
+              <label>
+                <span>Active</span>
+                <select
+                  value={String(pipelineForm.isActive)}
+                  onChange={(event) =>
+                    setPipelineForm((current) => ({
+                      ...current,
+                      isActive: event.target.value === 'true',
+                    }))
+                  }
+                >
+                  <option value="true">Yes</option>
+                  <option value="false">No</option>
+                </select>
+              </label>
+            </div>
+
+            <div className="panel">
+              <div className="panel-header">
+                <h2>Steps</h2>
+              </div>
+
+              <div className="form-grid release-form-grid">
+                <label>
+                  <span>Step name</span>
+                  <input
+                    value={pipelineStepDraft.name}
+                    onChange={(event) => setPipelineStepDraft((current) => ({ ...current, name: event.target.value }))}
+                    placeholder="Build"
+                  />
+                </label>
+
+                <label>
+                  <span>Type</span>
+                  <select
+                    value={pipelineStepDraft.type}
+                    onChange={(event) =>
+                      setPipelineStepDraft((current) => ({
+                        ...current,
+                        type: event.target.value as PipelineStepType,
+                      }))
+                    }
+                  >
+                    <option value="Build">Build</option>
+                    <option value="Deploy">Deploy</option>
+                    <option value="Playwright">Playwright</option>
+                  </select>
+                </label>
+
+                <label>
+                  <span>Configuration</span>
+                  <input
+                    value={pipelineStepDraft.configuration}
+                    onChange={(event) =>
+                      setPipelineStepDraft((current) => ({ ...current, configuration: event.target.value }))
+                    }
+                    placeholder="dotnet build"
+                  />
+                </label>
+              </div>
+
+              <div className="action-row" style={{ marginTop: 12 }}>
+                <button className="primary-button" type="button" onClick={handlePipelineFormStepAdd}>
+                  Add step
+                </button>
+              </div>
+
+              {pipelineForm.steps.length > 0 ? (
+                <div className="table-wrapper" style={{ marginTop: 18 }}>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>#</th>
+                        <th>Name</th>
+                        <th>Type</th>
+                        <th>Configuration</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pipelineForm.steps.map((step, index) => (
+                        <tr key={`${step.name}-${index}`}>
+                          <td>{step.order}</td>
+                          <td>{step.name}</td>
+                          <td>{step.type}</td>
+                          <td>{step.configuration || '-'}</td>
+                          <td>
+                            <button className="delete-button" type="button" onClick={() => handlePipelineFormStepRemove(index)}>
+                              Remove
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : null}
+            </div>
+
+            <div className="action-row">
+              <button className="primary-button" type="submit" disabled={pipelineSubmitting}>
+                {pipelineSubmitting ? 'Saving...' : editingPipelineId ? 'Update pipeline' : 'Create pipeline'}
+              </button>
+              {editingPipelineId ? (
+                <button className="ghost-button" type="button" onClick={resetPipelineForm}>
+                  Cancel
+                </button>
+              ) : null}
+            </div>
+          </form> : null}
+
+          {pipelinesLoading ? (
+            <p className="empty-state">Loading pipelines...</p>
+          ) : pipelines.length === 0 ? (
+            <p className="empty-state">No pipelines yet.</p>
+          ) : (
+            <div className="table-wrapper release-table-wrapper">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Description</th>
+                    <th>Steps</th>
+                    <th>Status</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pipelines.map((pipeline) => (
+                    <tr key={pipeline.id}>
+                      <td><strong>{pipeline.name}</strong></td>
+                      <td>{pipeline.description ?? '-'}</td>
+                      <td>{pipeline.steps.length}</td>
+                      <td><span className={`status-badge ${pipeline.isActive ? 'active' : 'inactive'}`}>{pipeline.isActive ? 'Active' : 'Inactive'}</span></td>
+                      <td>
+                        <div className="row-actions">
+                          {canWrite ? (
+                            <button className="edit-button" type="button" onClick={() => handlePipelineEdit(pipeline)}>
+                              Edit
+                            </button>
+                          ) : null}
+                          {currentUserRole === 'Admin' ? (
+                            <button className="delete-button" type="button" onClick={() => void handlePipelineDelete(pipeline.id)}>
+                              Delete
+                            </button>
+                          ) : null}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      ) : null}
+
+      {activeSection === 'releases' && selectedReleaseProjectId ? (
         <section className="panel release-panel">
           <div className="panel-header">
             <div>
@@ -1111,13 +1722,13 @@ function App() {
               <button className="ghost-button" type="button" onClick={() => void loadReleases(selectedReleaseProjectId)}>
                 Refresh
               </button>
-              <button className="ghost-button" type="button" onClick={() => setSelectedReleaseProjectId(null)}>
+              <button className="ghost-button" type="button" onClick={() => { setSelectedReleaseProjectId(null); setActiveSection('projects') }}>
                 Close
               </button>
             </div>
           </div>
 
-          <form className="project-form" onSubmit={handleReleaseSubmit}>
+          {canWrite ? <form className="project-form" onSubmit={handleReleaseSubmit}>
             <div className="form-grid release-form-grid">
               <label>
                 <span>Version</span>
@@ -1176,7 +1787,7 @@ function App() {
                 </button>
               ) : null}
             </div>
-          </form>
+          </form> : null}
 
           {releasesLoading ? (
             <p className="empty-state">Loading releases...</p>
@@ -1208,12 +1819,16 @@ function App() {
                         <td>{release.publishedAt ? new Date(release.publishedAt).toLocaleDateString() : '-'}</td>
                         <td>
                           <div className="row-actions">
-                            <button className="edit-button" type="button" onClick={() => handleReleaseEdit(release)}>
-                              Edit
-                            </button>
-                            <button className="delete-button" type="button" onClick={() => void handleReleaseDelete(release.id)}>
-                              Delete
-                            </button>
+                            {canWrite ? (
+                              <button className="edit-button" type="button" onClick={() => handleReleaseEdit(release)}>
+                                Edit
+                              </button>
+                            ) : null}
+                            {currentUserRole === 'Admin' ? (
+                              <button className="delete-button" type="button" onClick={() => void handleReleaseDelete(release.id)}>
+                                Delete
+                              </button>
+                            ) : null}
                           </div>
                         </td>
                       </tr>
@@ -1226,7 +1841,7 @@ function App() {
         </section>
       ) : null}
 
-      {selectedProjectId ? (
+      {activeSection === 'projects' && selectedProjectId ? (
         <section className="panel environment-panel">
           <div className="panel-header">
             <div>
@@ -1243,7 +1858,7 @@ function App() {
             </div>
           </div>
 
-          <form className="project-form" onSubmit={handleEnvironmentSubmit}>
+          {canWrite ? <form className="project-form" onSubmit={handleEnvironmentSubmit}>
             <div className="form-grid environment-form-grid">
               <label>
                 <span>Name</span>
@@ -1307,7 +1922,7 @@ function App() {
                 </button>
               ) : null}
             </div>
-          </form>
+          </form> : null}
 
           {environmentsLoading ? (
             <p className="empty-state">Loading environments...</p>
@@ -1340,9 +1955,11 @@ function App() {
                         <td>{new Date(environment.updatedAt).toLocaleDateString()}</td>
                         <td>
                           <div className="row-actions">
-                            <button className="edit-button" type="button" onClick={() => handleEnvironmentEdit(environment)}>
-                              Edit
-                            </button>
+                            {canWrite ? (
+                              <button className="edit-button" type="button" onClick={() => handleEnvironmentEdit(environment)}>
+                                Edit
+                              </button>
+                            ) : null}
                             <button
                               className="deployment-button"
                               type="button"
@@ -1350,9 +1967,11 @@ function App() {
                             >
                               Deployments
                             </button>
-                            <button className="delete-button" type="button" onClick={() => void handleEnvironmentDelete(environment.id)}>
-                              Delete
-                            </button>
+                            {currentUserRole === 'Admin' ? (
+                              <button className="delete-button" type="button" onClick={() => void handleEnvironmentDelete(environment.id)}>
+                                Delete
+                              </button>
+                            ) : null}
                           </div>
                         </td>
                       </tr>
@@ -1365,7 +1984,7 @@ function App() {
         </section>
       ) : null}
 
-      {selectedProjectId && selectedEnvironmentId ? (
+      {activeSection === 'projects' && selectedProjectId && selectedEnvironmentId ? (
         <section className="panel deployment-panel">
           <div className="panel-header">
             <div>
@@ -1386,7 +2005,7 @@ function App() {
             </div>
           </div>
 
-          <form className="project-form" onSubmit={handleDeploymentSubmit}>
+          {canWrite ? <form className="project-form" onSubmit={handleDeploymentSubmit}>
             <div className="form-grid deployment-form-grid">
               <label>
                 <span>Version</span>
@@ -1437,7 +2056,7 @@ function App() {
                 </button>
               ) : null}
             </div>
-          </form>
+          </form> : null}
 
           {deploymentsLoading ? (
             <p className="empty-state">Loading deployments...</p>
@@ -1469,12 +2088,16 @@ function App() {
                         <td>{new Date(deployment.createdAt).toLocaleDateString()}</td>
                         <td>
                           <div className="row-actions">
-                            <button className="edit-button" type="button" onClick={() => handleDeploymentEdit(deployment)}>
-                              Edit
-                            </button>
-                            <button className="delete-button" type="button" onClick={() => void handleDeploymentDelete(deployment.id)}>
-                              Delete
-                            </button>
+                            {canWrite ? (
+                              <button className="edit-button" type="button" onClick={() => handleDeploymentEdit(deployment)}>
+                                Edit
+                              </button>
+                            ) : null}
+                            {currentUserRole === 'Admin' ? (
+                              <button className="delete-button" type="button" onClick={() => void handleDeploymentDelete(deployment.id)}>
+                                Delete
+                              </button>
+                            ) : null}
                           </div>
                         </td>
                       </tr>

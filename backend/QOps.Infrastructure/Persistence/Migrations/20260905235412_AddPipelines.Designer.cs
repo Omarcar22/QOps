@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using QOps.Infrastructure.Persistence;
 
@@ -11,9 +12,11 @@ using QOps.Infrastructure.Persistence;
 namespace QOps.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(QOpsDbContext))]
-    partial class QOpsDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260905235412_AddPipelines")]
+    partial class AddPipelines
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -140,51 +143,6 @@ namespace QOps.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("Pipelines", (string)null);
-                });
-
-            modelBuilder.Entity("QOps.Domain.Pipelines.PipelineExecution", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<DateTimeOffset?>("FinishedAt")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("Notes")
-                        .HasMaxLength(2000)
-                        .HasColumnType("nvarchar(2000)");
-
-                    b.Property<Guid>("PipelineId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("ProjectId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTimeOffset?>("StartedAt")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<string>("TriggeredBy")
-                        .IsRequired()
-                        .HasMaxLength(120)
-                        .HasColumnType("nvarchar(120)");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("datetimeoffset");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ProjectId", "PipelineId", "CreatedAt");
-
-                    b.ToTable("PipelineExecutions", (string)null);
                 });
 
             modelBuilder.Entity("QOps.Domain.Pipelines.PipelineStep", b =>

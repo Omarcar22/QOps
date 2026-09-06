@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using QOps.Domain.Deployments;
 using QOps.Domain.Environments;
+using QOps.Domain.Pipelines;
 using QOps.Domain.Projects;
 using QOps.Domain.Releases;
 using QOps.Domain.Users;
@@ -17,6 +18,12 @@ public sealed class QOpsDbContext(DbContextOptions<QOpsDbContext> options) : DbC
     public DbSet<Deployment> Deployments => Set<Deployment>();
 
     public DbSet<Release> Releases => Set<Release>();
+
+    public DbSet<Pipeline> Pipelines => Set<Pipeline>();
+
+    public DbSet<PipelineStep> PipelineSteps => Set<PipelineStep>();
+
+    public DbSet<PipelineExecution> PipelineExecutions => Set<PipelineExecution>();
 
     public DbSet<User> Users => Set<User>();
 
@@ -67,6 +74,45 @@ public sealed class QOpsDbContext(DbContextOptions<QOpsDbContext> options) : DbC
             entity.Property(release => release.CommitSha).HasMaxLength(100);
             entity.Property(release => release.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
             entity.HasIndex(release => new { release.ProjectId, release.Version }).IsUnique();
+        });
+
+        modelBuilder.Entity<Pipeline>(entity =>
+        {
+            entity.ToTable("Pipelines");
+            entity.HasKey(pipeline => pipeline.Id);
+            entity.Property(pipeline => pipeline.ProjectId).IsRequired();
+            entity.Property(pipeline => pipeline.Name).HasMaxLength(120).IsRequired();
+            entity.Property(pipeline => pipeline.Description).HasMaxLength(2000);
+            entity.Property(pipeline => pipeline.IsActive).IsRequired();
+            entity.HasIndex(pipeline => new { pipeline.ProjectId, pipeline.Name }).IsUnique();
+            entity.HasMany(pipeline => pipeline.Steps)
+                .WithOne()
+                .HasForeignKey(step => step.PipelineId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<PipelineStep>(entity =>
+        {
+            entity.ToTable("PipelineSteps");
+            entity.HasKey(step => step.Id);
+            entity.Property(step => step.PipelineId).IsRequired();
+            entity.Property(step => step.Name).HasMaxLength(120).IsRequired();
+            entity.Property(step => step.Type).HasConversion<string>().HasMaxLength(20).IsRequired();
+            entity.Property(step => step.Order).IsRequired();
+            entity.Property(step => step.Configuration).HasMaxLength(2000);
+            entity.HasIndex(step => new { step.PipelineId, step.Order }).IsUnique();
+        });
+
+        modelBuilder.Entity<PipelineExecution>(entity =>
+        {
+            entity.ToTable("PipelineExecutions");
+            entity.HasKey(execution => execution.Id);
+            entity.Property(execution => execution.ProjectId).IsRequired();
+            entity.Property(execution => execution.PipelineId).IsRequired();
+            entity.Property(execution => execution.TriggeredBy).HasMaxLength(120).IsRequired();
+            entity.Property(execution => execution.Notes).HasMaxLength(2000);
+            entity.Property(execution => execution.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
+            entity.HasIndex(execution => new { execution.ProjectId, execution.PipelineId, execution.CreatedAt });
         });
 
         modelBuilder.Entity<User>(entity =>

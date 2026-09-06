@@ -1,0 +1,25 @@
+{
+  "name": "Release validation pipeline",
+  "description": "Build, deploy, and validate the application with Playwright",
+  "isActive": true,
+  "steps": [
+    {
+      "name": "Build application",
+      "type": "Build",
+      "order": 1,
+      "configuration": "dotnet build"
+    },
+    {
+      "name": "Deploy to staging",
+      "type": "Deploy",
+      "order": 2,
+      "configuration": "kubectl apply -f deployment/staging.yaml"
+    },
+    {
+      "name": "Run Playwright smoke tests",
+      "type": "Playwright",
+      "order": 3,
+      "configuration": "npx playwright test --project=chromium"
+    }
+  ]
+}
