@@ -72,7 +72,17 @@ jobs:
           echo "JWT_KEY is set: ${JWT_KEY:+yes}"
 
       - name: Run unit tests
-        run: dotnet test tests/QOps.UnitTests/QOps.UnitTests.csproj --no-restore
+        run: dotnet test tests/QOps.UnitTests/QOps.UnitTests.csproj --no-restore --logger "trx;LogFileName=unit-tests.trx"
 
       - name: Run API tests
-        run: dotnet test tests/QOps.ApiTests/QOps.ApiTests.csproj --no-restore
+        run: dotnet test tests/QOps.ApiTests/QOps.ApiTests.csproj --no-restore --logger "trx;LogFileName=api-tests.trx"
+
+      - name: Upload test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qops-test-results
+          path: |
+            tests/QOps.UnitTests/TestResults/*.trx
+            tests/QOps.ApiTests/TestResults/*.trx
+          if-no-files-found: warn
