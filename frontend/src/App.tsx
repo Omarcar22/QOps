@@ -1131,6 +1131,21 @@ function App() {
               : 'Start with a Viewer role and manage your delivery operations workspace.'}
           </p>
 
+          <div className="demo-role-grid" aria-label="Demo roles">
+            <div className="demo-role-card demo-role-admin">
+              <span>Admin</span>
+              <small>Full access</small>
+            </div>
+            <div className="demo-role-card demo-role-developer">
+              <span>Developer</span>
+              <small>Build & deploy</small>
+            </div>
+            <div className="demo-role-card demo-role-viewer">
+              <span>Viewer</span>
+              <small>Read-only</small>
+            </div>
+          </div>
+
           <form className="auth-form" onSubmit={handleAuthSubmit}>
             <label>
               <span>Email</span>

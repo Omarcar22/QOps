@@ -45,6 +45,9 @@ if (jwtKey.Length < 32)
     throw new InvalidOperationException("JWT_KEY or Jwt:Key must be at least 32 characters long.");
 }
 
+builder.Configuration["Jwt:Key"] = jwtKey;
+builder.Configuration["Jwt:Issuer"] = jwtIssuer;
+
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -92,6 +95,62 @@ if (builder.Configuration.GetValue<bool>("Database:ApplyMigrations"))
     using var scope = app.Services.CreateScope();
     var dbContext = scope.ServiceProvider.GetRequiredService<QOpsDbContext>();
     await dbContext.Database.MigrateAsync();
+}
+
+using (var scope = app.Services.CreateScope())
+{
+    var repository = scope.ServiceProvider.GetRequiredService<IUserRepository>();
+    var passwordHasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher<User>>();
+
+    var demoAccounts = new[]
+    {
+        new
+        {
+            Email = (Environment.GetEnvironmentVariable("E2E_ADMIN_EMAIL") ?? "testadmin@test.com").Trim(),
+            Password = Environment.GetEnvironmentVariable("E2E_ADMIN_PASSWORD") ?? "Admintest1",
+            Role = UserRole.Admin,
+        },
+        new
+        {
+            Email = (Environment.GetEnvironmentVariable("E2E_DEVELOPER_EMAIL") ?? "developer-demo@qops.local").Trim(),
+            Password = Environment.GetEnvironmentVariable("E2E_DEVELOPER_PASSWORD") ?? "DeveloperDemo123!",
+            Role = UserRole.Developer,
+        },
+        new
+        {
+            Email = (Environment.GetEnvironmentVariable("E2E_VIEWER_EMAIL") ?? "viewer-demo@qops.local").Trim(),
+            Password = Environment.GetEnvironmentVariable("E2E_VIEWER_PASSWORD") ?? "ViewerDemo123!",
+            Role = UserRole.Viewer,
+        },
+    };
+
+    foreach (var demoAccount in demoAccounts)
+    {
+        if (string.IsNullOrWhiteSpace(demoAccount.Email) || string.IsNullOrWhiteSpace(demoAccount.Password))
+        {
+            continue;
+        }
+
+        var existingUser = await repository.GetByEmailAsync(demoAccount.Email.ToLowerInvariant(), CancellationToken.None);
+
+        if (existingUser is null)
+        {
+            var user = new User(demoAccount.Email, "placeholder", demoAccount.Role);
+            var passwordHash = passwordHasher.HashPassword(user, demoAccount.Password);
+            user.Update(demoAccount.Email, passwordHash, demoAccount.Role);
+            user.SetActive(true);
+
+            await repository.AddAsync(user, CancellationToken.None);
+            await repository.SaveChangesAsync(CancellationToken.None);
+        }
+        else
+        {
+            var passwordHash = passwordHasher.HashPassword(existingUser, demoAccount.Password);
+            existingUser.Update(existingUser.Email, passwordHash, demoAccount.Role);
+            existingUser.SetActive(true);
+            await repository.SaveChangesAsync(CancellationToken.None);
+        }
+    }
 }
 
 if (app.Environment.IsDevelopment())

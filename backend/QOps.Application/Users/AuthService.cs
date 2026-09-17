@@ -73,8 +73,8 @@ public sealed class AuthService(
     private string CreateToken(User user)
     {
         var jwt = configuration.GetSection("Jwt");
-        var key = jwt["Key"] ?? throw new InvalidOperationException("Jwt:Key is not configured.");
-        var issuer = jwt["Issuer"] ?? "QOps";
+        var key = jwt["Key"] ?? Environment.GetEnvironmentVariable("JWT_KEY") ?? throw new InvalidOperationException("Jwt:Key is not configured.");
+        var issuer = jwt["Issuer"] ?? Environment.GetEnvironmentVariable("JWT_ISSUER") ?? "QOps";
         var claims = new[]
         {
             new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),

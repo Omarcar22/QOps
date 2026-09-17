@@ -80,6 +80,34 @@ Copy-Item .env.example .env
 
 The sample file contains the required values for the local database, JWT signing key, and related test settings. Never commit your personal .env file.
 
+### Demo accounts for local testing
+
+For a quick local demo login, the application seeds the following demo accounts from the local environment values. These are intended only for local demonstration and portfolio use.
+
+- Admin: testadmin@test.com / Admintest1
+- Developer: developer-demo@qops.local / DeveloperDemo123!
+- Viewer: viewer-demo@qops.local / ViewerDemo123!
+
+> These values are kept only in the local .env file and in this README for demo purposes. They are not used in production or committed as real secrets.
+
+### Environment variables
+
+The project expects the following values to be available locally in a .env file or active shell environment:
+
+- QOPS_DATABASE_CONNECTION
+- QOPS_TEST_DATABASE_CONNECTION
+- JWT_KEY
+- JWT_ISSUER
+- MSSQL_SA_PASSWORD
+- E2E_ADMIN_EMAIL
+- E2E_ADMIN_PASSWORD
+- E2E_DEVELOPER_EMAIL
+- E2E_DEVELOPER_PASSWORD
+- E2E_VIEWER_EMAIL
+- E2E_VIEWER_PASSWORD
+
+A working .env example is provided in [.env.example](.env.example).
+
 ## Getting started
 
 ### Requirements
@@ -112,10 +140,14 @@ npm install
 npm run dev -- --host 127.0.0.1 --port 4173
 ```
 
+If port 4173 is already in use, Vite will automatically move to the next available port. In that case, the terminal output will show the actual URL to use.
+
 Then open:
 
 - Frontend: http://127.0.0.1:4173
 - API: http://127.0.0.1:5091
+
+If the frontend chooses a fallback port such as 4175, use that exact URL instead.
 
 ## Available workflows
 

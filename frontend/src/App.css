@@ -119,8 +119,46 @@
 }
 
 .auth-copy {
-  margin: 12px 0 28px;
+  margin: 12px 0 20px;
   color: #6b7280;
+}
+
+.demo-role-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 22px;
+}
+
+.demo-role-card {
+  display: grid;
+  gap: 4px;
+  padding: 12px 10px;
+  border-radius: 12px;
+  border: 1px solid #dbeafe;
+  background: #f8fbff;
+  text-align: center;
+}
+
+.demo-role-card span {
+  font-weight: 700;
+  color: #111827;
+}
+
+.demo-role-card small {
+  color: #6b7280;
+}
+
+.demo-role-admin {
+  background: linear-gradient(180deg, rgba(219, 234, 254, 0.8), rgba(239, 246, 255, 1));
+}
+
+.demo-role-developer {
+  background: linear-gradient(180deg, rgba(221, 214, 254, 0.8), rgba(245, 243, 255, 1));
+}
+
+.demo-role-viewer {
+  background: linear-gradient(180deg, rgba(220, 252, 231, 0.8), rgba(240, 253, 244, 1));
 }
 
 .auth-form {
