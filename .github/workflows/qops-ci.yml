@@ -14,7 +14,15 @@ jobs:
     env:
       MSSQL_SA_PASSWORD: ${{ secrets.MSSQL_SA_PASSWORD }}
       QOPS_DATABASE_CONNECTION: ${{ secrets.QOPS_DATABASE_CONNECTION }}
+      QOPS_TEST_DATABASE_CONNECTION: ${{ secrets.QOPS_TEST_DATABASE_CONNECTION }}
       JWT_KEY: ${{ secrets.JWT_KEY }}
+      JWT_ISSUER: QOps
+      E2E_ADMIN_EMAIL: ${{ secrets.E2E_ADMIN_EMAIL }}
+      E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
+      E2E_DEVELOPER_EMAIL: ${{ secrets.E2E_DEVELOPER_EMAIL }}
+      E2E_DEVELOPER_PASSWORD: ${{ secrets.E2E_DEVELOPER_PASSWORD }}
+      E2E_VIEWER_EMAIL: ${{ secrets.E2E_VIEWER_EMAIL }}
+      E2E_VIEWER_PASSWORD: ${{ secrets.E2E_VIEWER_PASSWORD }}
 
     services:
       sqlserver:
