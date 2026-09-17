@@ -185,11 +185,6 @@ npx playwright test --config=playwright.config.ts
 
 The project also includes evidence generation for QA artifacts to make the validation process visible and reusable for portfolio presentation.
 
-## Portfolio positioning
-
-QOps is a realistic platform inspired by real-world release operations. It showcases how a team can manage software delivery responsibilities across multiple domains: engineering, deployment, environment management, operational governance, and automated validation.
-
-It was built to demonstrate not only application development skills, but also product thinking, system design, automation discipline, and a strong focus on quality engineering.
 
 ## Project status
 
