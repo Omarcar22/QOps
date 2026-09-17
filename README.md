@@ -2,7 +2,7 @@
 
 QOps is a release operations and QA platform designed to mirror how software teams manage projects, environments, deployments, releases, and validation gates in a real delivery workflow.
 
-The project was built as a portfolio-ready application to demonstrate end-to-end engineering skills across backend development, API design, database modeling, frontend development, role-based access control, and quality automation.
+
 
 ## What this project does
 
