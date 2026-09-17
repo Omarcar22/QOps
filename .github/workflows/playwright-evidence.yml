@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [ main, master ]
 
+env:
+  E2E_ADMIN_EMAIL: ${{ secrets.E2E_ADMIN_EMAIL }}
+  E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
+
 jobs:
   e2e-and-evidence:
     runs-on: ubuntu-latest
@@ -50,16 +54,18 @@ jobs:
 
       - name: Run Playwright smoke test
         working-directory: frontend
-        run: npx playwright test --reporter=line,json
+        run: npx playwright test --config=playwright.config.ts --reporter=line,json
 
       - name: Generate QA evidence artifact
         run: node scripts/generate-playwright-artifact.mjs
 
       - name: Upload artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: qops-playwright-evidence
           path: |
+            playwright-report/**
             artifacts/qa-evidence/playwright-evidence.json
-            playwright-report/results.json
             tests/QOps.ApiTests/TestResults/*.trx
+          if-no-files-found: warn

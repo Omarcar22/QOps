@@ -14,10 +14,24 @@ public sealed class QOpsWebApplicationFactory : WebApplicationFactory<Program>
         builder.UseEnvironment("Development");
         builder.ConfigureAppConfiguration((_, configuration) =>
         {
+            var connectionString = Environment.GetEnvironmentVariable("QOPS_TEST_DATABASE_CONNECTION");
+            var jwtKey = Environment.GetEnvironmentVariable("JWT_KEY");
+
+            if (string.IsNullOrWhiteSpace(connectionString))
+            {
+                throw new InvalidOperationException("QOPS_TEST_DATABASE_CONNECTION must be configured for API tests.");
+            }
+
+            if (string.IsNullOrWhiteSpace(jwtKey))
+            {
+                jwtKey = "TestJwtKeyForDevelopmentOnly_1234567890";
+            }
+
             configuration.AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["ConnectionStrings:QOpsDatabase"] =
-                    "Server=localhost,1433;Database=QOpsIntegrationTestsV2;User Id=sa;Password=QOps_dev_2026!;TrustServerCertificate=True;"
+                ["ConnectionStrings:QOpsDatabase"] = connectionString,
+                ["Jwt:Key"] = jwtKey,
+                ["Jwt:Issuer"] = Environment.GetEnvironmentVariable("JWT_ISSUER") ?? "QOps"
             });
         });
         builder.ConfigureTestServices(services =>

@@ -1295,7 +1295,7 @@ function App() {
 
         {canWrite ? <form className="project-form" onSubmit={handleSubmit}>
           <label>
-            <span>Name</span>
+            <span>Name</span> 
             <input
               value={form.name}
               onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}

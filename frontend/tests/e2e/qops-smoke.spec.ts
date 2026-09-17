@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test'
 
 test('QOps smoke flow authenticates a viewer and enforces write permissions', async ({ page }) => {
   const email = `qa.${Date.now()}@example.com`
-  const password = 'QOpsSmoke123!'
+  const password = `QOpsSmoke_${Date.now()}!`
 
   await page.goto('/')
 

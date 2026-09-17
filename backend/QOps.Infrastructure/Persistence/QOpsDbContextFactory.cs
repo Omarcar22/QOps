@@ -7,8 +7,12 @@ public sealed class QOpsDbContextFactory : IDesignTimeDbContextFactory<QOpsDbCon
 {
     public QOpsDbContext CreateDbContext(string[] args)
     {
-        var connectionString = Environment.GetEnvironmentVariable("QOPS_DATABASE_CONNECTION")
-            ?? "Server=localhost,1433;Database=QOps;User Id=sa;Password=QOps_dev_2026!;TrustServerCertificate=True;";
+        var connectionString = Environment.GetEnvironmentVariable("QOPS_DATABASE_CONNECTION");
+
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            throw new InvalidOperationException("QOPS_DATABASE_CONNECTION must be configured for design-time migrations.");
+        }
 
         var optionsBuilder = new DbContextOptionsBuilder<QOpsDbContext>();
         optionsBuilder.UseSqlServer(connectionString);

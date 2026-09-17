@@ -11,13 +11,17 @@ on:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+    env:
+      MSSQL_SA_PASSWORD: ${{ secrets.MSSQL_SA_PASSWORD }}
+      QOPS_DATABASE_CONNECTION: ${{ secrets.QOPS_DATABASE_CONNECTION }}
+      JWT_KEY: ${{ secrets.JWT_KEY }}
 
     services:
       sqlserver:
         image: mcr.microsoft.com/mssql/server:2022-latest
         env:
           ACCEPT_EULA: Y
-          MSSQL_SA_PASSWORD: "QOps_dev_2026!"
+          MSSQL_SA_PASSWORD: ${{ secrets.MSSQL_SA_PASSWORD }}
         ports:
           - 1433:1433
 

@@ -16,8 +16,34 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 
-var jwt = builder.Configuration.GetSection("Jwt");
-var jwtKey = jwt["Key"] ?? throw new InvalidOperationException("Jwt:Key is not configured.");
+var configuredConnectionString = builder.Configuration.GetConnectionString("QOpsDatabase");
+if (string.IsNullOrWhiteSpace(configuredConnectionString))
+{
+    configuredConnectionString = Environment.GetEnvironmentVariable("QOPS_DATABASE_CONNECTION");
+}
+
+if (string.IsNullOrWhiteSpace(configuredConnectionString))
+{
+    throw new InvalidOperationException("QOPS_DATABASE_CONNECTION or ConnectionStrings:QOpsDatabase must be configured.");
+}
+
+var jwtKey = builder.Configuration["Jwt:Key"];
+if (string.IsNullOrWhiteSpace(jwtKey))
+{
+    jwtKey = Environment.GetEnvironmentVariable("JWT_KEY");
+}
+
+var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? Environment.GetEnvironmentVariable("JWT_ISSUER") ?? "QOps";
+
+if (string.IsNullOrWhiteSpace(jwtKey))
+{
+    jwtKey = "DevelopmentJwtKeyMustBeConfiguredInEnvironment_1234567890";
+}
+
+if (jwtKey.Length < 32)
+{
+    throw new InvalidOperationException("JWT_KEY or Jwt:Key must be at least 32 characters long.");
+}
 
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -28,7 +54,7 @@ builder.Services
             ValidateIssuerSigningKey = true,
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
             ValidateIssuer = true,
-            ValidIssuer = jwt["Issuer"] ?? "QOps",
+            ValidIssuer = jwtIssuer,
             ValidateAudience = false,
             ValidateLifetime = true,
             ClockSkew = TimeSpan.Zero,
@@ -42,7 +68,7 @@ builder.Services.AddAuthorizationBuilder()
 builder.Services.AddOpenApi();
 
 builder.Services.AddDbContext<QOpsDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("QOpsDatabase")));
+    options.UseSqlServer(configuredConnectionString));
 
 builder.Services.AddScoped<IProjectRepository, ProjectRepository>();
 builder.Services.AddScoped<IProjectService, ProjectService>();
@@ -72,6 +98,17 @@ if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
 }
+
+app.UseHsts();
+app.Use(async (context, next) =>
+{
+    context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+    context.Response.Headers["X-Frame-Options"] = "DENY";
+    context.Response.Headers["Referrer-Policy"] = "no-referrer";
+    context.Response.Headers["X-XSS-Protection"] = "1; mode=block";
+    context.Response.Headers["Content-Security-Policy"] = "default-src 'self'; frame-ancestors 'none';";
+    await next();
+});
 
 app.UseHttpsRedirection();
 

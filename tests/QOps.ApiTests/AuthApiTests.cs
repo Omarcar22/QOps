@@ -46,6 +46,16 @@ public class AuthApiTests(QOpsWebApplicationFactory factory)
     }
 
     [Fact]
+    public async Task Register_ShouldRejectMalformedEmail()
+    {
+        var response = await _client.PostAsJsonAsync(
+            "/api/auth/register",
+            new RegisterUserRequest("invalid-email", "Strong-password-123!"));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
     public async Task Login_ShouldRejectInvalidPassword()
     {
         var email = $"invalid-{Guid.NewGuid():N}@example.com";
