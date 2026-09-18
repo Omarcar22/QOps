@@ -20,8 +20,6 @@ This is not just a CRUD app; it is designed to feel like a lightweight internal 
 
 ## Why this project matters
 
-QOps was built to show that I can work across the full stack and understand how modern software delivery systems are structured in practice.
-
 It demonstrates capability in:
 
 - ASP.NET Core API architecture and service layering
@@ -185,10 +183,6 @@ npx playwright test --config=playwright.config.ts
 
 The project also includes evidence generation for QA artifacts to make the validation process visible and reusable for portfolio presentation.
 
-
-## Project status
-
-This project is functional, testable, and structured to communicate engineering maturity clearly. It is suitable for showcasing in a portfolio, technical interviews, or as part of a DevOps / platform engineering narrative.
 
 ## License
 
